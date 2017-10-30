@@ -378,26 +378,57 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
     int ny_all = ny + 2*ng;
     bool done = false;
     float t = 0;
+
+	// move host memory to device
+	// TODO correct fsize
+	int fsize = sizeof(float);
+	float *dev_u, *dev_v, *dev_scratch, *dev_f, *dev_g;
+	cudaMalloc( (void**)&dev_u, fsize);
+	cudaMalloc( (void**)&dev_v, fsize);
+	cudaMalloc( (void**)&dev_scratch, fsize);
+	cudaMalloc( (void**)&dev_f, fsize);
+	cudaMalloc( (void**)&dev_g, fsize);	
+
+	cudaMemcpy( dev_u, u, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( dev_v, v, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( dev_scratch, scratch, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( dev_f, f, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( dev_g, g, fsize, cudaMemcpyHostToDevice);
+
+
     while (!done) {
         float cxy[2] = {1.0e-15f, 1.0e-15f};
         central2d_periodic<<<1,512>>>(u, nx, ny, ng, nfield);
-        speed<<<1,512>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
+        speed<<<1,512>>>(cxy, dev_u, nx_all * ny_all, nx_all * ny_all);
         float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
         if (t + 2*dt >= tfinal) {
             dt = (tfinal-t)/2;
             done = true;
         }
-        central2d_step<<<1,512>>>(u, v, scratch, f, g,
+        central2d_step<<<1,512>>>(dev_u, dev_v, dev_scratch, dev_f, dev_g,
                        0, nx+4, ny+4, ng-2,
                        nfield, flux, speed,
                        dt, dx, dy);
-        central2d_step<<<1,512>>>(v, u, scratch, f, g,
+        central2d_step<<<1,512>>>(dev_v, dev_u, dev_scratch, dev_f, dev_g,
                        1, nx, ny, ng,
                        nfield, flux, speed,
                        dt, dx, dy);
         t += 2*dt;
         nstep += 2;
     }
+
+	//  move device memory back to host
+	cudaMemcpy( u, dev_u, fsize, cudaMemcpyDeviceToHost);
+        cudaMemcpy( v, dev_v, fsize, cudaMemcpyDeviceToHost);
+        cudaMemcpy( scratch, dev_scratch, fsize, cudaMemcpyDeviceToHost);
+        cudaMemcpy( f, dev_f, fsize, cudaMemcpyDeviceToHost);
+        cudaMemcpy( g, dev_g, fsize, cudaMemcpyDeviceToHost);
+
+	cudaFree(dev_u);
+	cudaFree(dev_v);
+	cudaFree(dev_scratch);
+	cudaFree(dev_f);
+	cudaFree(dev_g);
     return nstep;
 }
 
