@@ -51,9 +51,9 @@
  * $y$ momentum is at `U+2*field_stride`.
  */
 
-__device__ void shallow2d_flux(float* FU, float* GU, const float* U,
+ void shallow2d_flux(float* FU, float* GU, const float* U,
                     int ncell, int field_stride);
-__device__ void shallow2d_speed(float* cxy, const float* U,
+ void shallow2d_speed(float* cxy, const float* U,
                      int ncell, int field_stride);
 
 //ldoc off

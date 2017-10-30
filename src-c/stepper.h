@@ -106,7 +106,7 @@ int central2d_run(central2d_t* sim, float tfinal);
  * for applying the BCs.
  *
  */
-void central2d_periodic(float* u, int nx, int ny, int ng, int nfield);
+__global__ void central2d_periodic(float* u, int nx, int ny, int ng, int nfield);
 
 //ldoc off
 #endif /* STEPPER_H */

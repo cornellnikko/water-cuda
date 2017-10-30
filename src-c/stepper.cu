@@ -91,7 +91,7 @@ void copy_subgrid(float* __restrict__ dst,
             dst[iy*stride+ix] = src[iy*stride+ix];
 }
 
-__device__ void central2d_periodic(float* __restrict__ u,
+__global__ void central2d_periodic(float* __restrict__ u,
                         int nx, int ny, int ng, int nfield)
 {
     // Stride and number per field
@@ -133,7 +133,7 @@ __device__ void central2d_periodic(float* __restrict__ u,
 
 
 // Branch-free computation of minmod of two numbers times 2s
-static inline
+__device__ static inline
 float xmin2s(float s, float a, float b) {
     float sa = copysignf(s, a);
     float sb = copysignf(s, b);
@@ -145,7 +145,7 @@ float xmin2s(float s, float a, float b) {
 
 
 // Limited combined slope estimate
-static inline
+__device__ static inline
 float limdiff(float um, float u0, float up) {
     const float theta = 2.0;
     const float quarter = 0.25;
@@ -157,7 +157,7 @@ float limdiff(float um, float u0, float up) {
 
 
 // Compute limited derivs
-static inline
+__device__ static inline
 void limited_deriv1(float* __restrict__ du,
                     const float* __restrict__ u,
                     int ncell)
@@ -168,7 +168,7 @@ void limited_deriv1(float* __restrict__ du,
 
 
 // Compute limited derivs across stride
-static inline
+__device__ static inline
 void limited_derivk(float* __restrict__ du,
                     const float* __restrict__ u,
                     int ncell, int stride)
@@ -213,6 +213,7 @@ void limited_derivk(float* __restrict__ du,
 
 
 // Predictor half-step
+__device__
 static
 void central2d_predict(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -239,6 +240,7 @@ void central2d_predict(float* __restrict__ v,
 
 
 // Corrector
+__device__
 static
 void central2d_correct_sd(float* __restrict__ s,
                           float* __restrict__ d,
@@ -263,6 +265,7 @@ void central2d_correct_sd(float* __restrict__ s,
 
 
 // Corrector
+__device__
 static
 void central2d_correct(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -314,7 +317,7 @@ void central2d_correct(float* __restrict__ v,
     }
 }
 
-
+__global__
 static
 void central2d_step(float* __restrict__ u, float* __restrict__ v,
                     float* __restrict__ scratch,
@@ -361,7 +364,6 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
  * We always take an even number of steps so that the solution
  * at the end lives on the main grid instead of the staggered grid.
  */
-
 static
 int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
                    float* __restrict__ scratch,
@@ -378,18 +380,18 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
     float t = 0;
     while (!done) {
         float cxy[2] = {1.0e-15f, 1.0e-15f};
-        central2d_periodic<<<1,THREADS_PER_BLOCK>>>(u, nx, ny, ng, nfield);
-        speed(cxy, u, nx_all * ny_all, nx_all * ny_all);
+        central2d_periodic<<<1,512>>>(u, nx, ny, ng, nfield);
+        speed<<<1,512>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
         float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
         if (t + 2*dt >= tfinal) {
             dt = (tfinal-t)/2;
             done = true;
         }
-        central2d_step(u, v, scratch, f, g,
+        central2d_step<<<1,512>>>(u, v, scratch, f, g,
                        0, nx+4, ny+4, ng-2,
                        nfield, flux, speed,
                        dt, dx, dy);
-        central2d_step(v, u, scratch, f, g,
+        central2d_step<<<1,512>>>(v, u, scratch, f, g,
                        1, nx, ny, ng,
                        nfield, flux, speed,
                        dt, dx, dy);
