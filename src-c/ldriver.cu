@@ -72,7 +72,7 @@ FILE* viz_open(const char* fname, central2d_t* sim)
 {
     FILE* fp = fopen(fname, "w");
     if (fp) {
-        float xy[2] = {sim->nx, sim->ny};
+        float xy[2] = {(float)sim->nx, (float)sim->ny};
         fwrite(xy, sizeof(float), 2, fp);
     }
     return fp;

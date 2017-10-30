@@ -36,10 +36,10 @@ void shallow2dv_flux(float* __restrict__ fh,
     //cudaMemcpy(fh, &hu, ncell * sizeof(float), cudaMemcpyDeviceToDevice);
     //cudaMemcpy(gh, &hv, ncell * sizeof(float), cudaMemcpyDeviceToDevice);
 
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
+    //int index = blockIdx.x * blockDim.x + threadIdx.x;
+    //int stride = blockDim.x * gridDim.x;
 
-    for (int i = index; i < ncell; i += stride) {
+    for (int i = 0; i < ncell; i += 1) {
         float hi = h[i], hui = hu[i], hvi = hv[i];
         float inv_h = 1/hi;
         fhu[i] = hui*hui*inv_h + (0.5f*g)*hi*hi;
@@ -57,13 +57,15 @@ void shallow2dv_speed(float* __restrict__ cxy,
                       float g,
                       int ncell)
 {
+	//printf("&&&&&&");
+	//err = ::cudaDeviceSynchronize();
     float cx = cxy[0];
     float cy = cxy[1];
+	
+    //int index = blockIdx.x * blockDim.x + threadIdx.x;
+    //int stride = blockDim.x * gridDim.x;
 
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
-
-    for (int i = index; i < ncell; i += stride) {
+    for (int i = 0; i < ncell; i += 1) {
         float hi = h[i];
         float inv_hi = 1.0f/h[i];
         float root_gh = sqrtf(g * hi);

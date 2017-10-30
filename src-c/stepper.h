@@ -56,6 +56,13 @@ typedef struct central2d_t {
     float* g;
     float* scratch;
 
+	// References to CUDA storage
+	float *dev_u;
+	float *dev_v;
+	float *dev_f;
+	float *dev_g;
+	float *dev_scratch;
+
 } central2d_t;
 
 
