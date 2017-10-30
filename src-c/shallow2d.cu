@@ -18,7 +18,8 @@
 static const float g = 9.8;
 
 __device__
-static void shallow2dv_flux(float* __restrict__ fh,
+static
+void shallow2dv_flux(float* __restrict__ fh,
                      float* __restrict__ fhu,
                      float* __restrict__ fhv,
                      float* __restrict__ gh,
@@ -47,9 +48,8 @@ static void shallow2dv_flux(float* __restrict__ fh,
         ghv[i] = hvi*hvi*inv_h + (0.5f*g)*hi*hi;
     }
 }
-
 __device__
- static
+static
 void shallow2dv_speed(float* __restrict__ cxy,
                       const float* __restrict__ h,
                       const float* __restrict__ hu,
@@ -76,13 +76,12 @@ void shallow2dv_speed(float* __restrict__ cxy,
     cxy[1] = cy;
 }
 
-
 __device__
 void shallow2d_flux(float* FU, float* GU,const float* U,
                     int ncell, int field_stride)
 {
 	
-    shallow2dv_flux<<<1,512>>>(FU, FU+field_stride, FU+2*field_stride,
+    shallow2dv_flux(FU, FU+field_stride, FU+2*field_stride,
                     GU, GU+field_stride, GU+2*field_stride,
                     U,  U +field_stride, U +2*field_stride,
                     g, ncell);
@@ -92,5 +91,5 @@ __device__
 void shallow2d_speed(float* cxy, const float* U,
                      int ncell, int field_stride)
 {
-    shallow2dv_speed<<<1,512>>>(cxy, U, U+field_stride, U+2*field_stride, g, ncell);
+    shallow2dv_speed(cxy, U, U+field_stride, U+2*field_stride, g, ncell);
 }
