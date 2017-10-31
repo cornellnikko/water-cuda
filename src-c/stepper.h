@@ -65,6 +65,8 @@ typedef struct central2d_t {
 
 } central2d_t;
 
+__global__
+void cuda_module_init(float* u, float* v, float* f, float* g, float* scratch, int N);
 
 /**
  * For the most part, we treat the `central2d_t` as a read-only

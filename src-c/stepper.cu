@@ -5,6 +5,7 @@
 #include <math.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 //ldoc on
 /**
@@ -35,20 +36,40 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
     int ny_all = ny + 2*ng;
     int nc = nx_all * ny_all;
     int N  = nfield * nc;
+
     sim->u  = (float*) malloc((4*N + 6*nx_all)* sizeof(float));
     sim->v  = sim->u +   N;
     sim->f  = sim->u + 2*N;
     sim->g  = sim->u + 3*N;
     sim->scratch = sim->u + 4*N;
 
+//	cudaMallocManaged(&sim, sizeof(central2d_t));
 
+
+
+
+	cudaMallocManaged(&sim->u, (4*N + 6*nx_all)* sizeof(float));
+	cudaMallocManaged(&sim->v, N*sizeof(float));
+	cudaMallocManaged(&sim->f, N*sizeof(float));
+  	cudaMallocManaged(&sim->g, N*sizeof(float));
+	cudaMallocManaged(&sim->scratch, N*sizeof(float));
+
+
+    sim->v  = sim->u +   N;
+    sim->f  = sim->u + 2*N;
+    sim->g  = sim->u + 3*N;
+    sim->scratch = sim->u + 4*N;
+
+	//cuda_module_init<<<1,1>>>(sim->u,sim->v,sim->f,sim->g,sim->scratch, N);
+	//cudaDeviceSynchronize();
+	/*
 	int fsize = N * sizeof(float);
 	sim->dev_u = (float*) malloc((4*N + 6*nx_all)* sizeof(float));//(float*) malloc(N*sizeof(float));//(float*) malloc((4*N + 6*nx_all)* sizeof(float));
 	sim->dev_v = sim->dev_u + N;
 	sim->dev_f = sim->dev_u + 2*N;
 	sim->dev_g = sim->dev_u + 3*N;
 	sim->scratch = sim->dev_u +4*N;
-	
+	*/
 	
 
 	/*
@@ -57,7 +78,9 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
 	cudaMalloc( (void**)&sim->dev_f, N*sizeof(float));
 	cudaMalloc( (void**)&sim->dev_g, N*sizeof(float));	
 	cudaMalloc( (void**)&sim->dev_scratch, N*sizeof(float));
+	*/
 
+	/*
 	cudaMemcpy( dev_u, u, fsize, cudaMemcpyHostToDevice);
 	cudaMemcpy( dev_v, v, fsize, cudaMemcpyHostToDevice);
 	cudaMemcpy( dev_f, f, fsize, cudaMemcpyHostToDevice);
@@ -67,6 +90,15 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
     return sim;
 }
 
+
+__global__
+void cuda_module_init(float* u, float* v, float* f, float* g, float* scratch, int N)
+{
+	v = u + N;
+	f = u + 2*N;
+	g = u + 3*N;
+	scratch = u + 3*N;
+}
 
 void central2d_free(central2d_t* sim)
 {
@@ -89,9 +121,13 @@ void central2d_free(central2d_t* sim)
 
 int central2d_offset(central2d_t* sim, int k, int ix, int iy)
 {
+//	printf("b1\n");
     int nx = sim->nx, ny = sim->ny, ng = sim->ng;
-    int nx_all = nx + 2*ng;
-    int ny_all = ny + 2*ng;
+//    printf("b2\n");
+	int nx_all = nx + 2*ng;
+//	printf("b3\n");    
+int ny_all = ny + 2*ng;
+//printf("b4\n");
     return (k*ny_all+(ng+iy))*nx_all+(ng+ix);
 }
 
@@ -417,33 +453,38 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
     float t = 0;
     
 
-	
+		
 
 
     while (!done) {
         float cxy[2] = {1.0e-15f, 1.0e-15f};
-        central2d_periodic<<<1,1>>>(dev_u, nx, ny, ng, nfield);
+        central2d_periodic<<<1,1>>>(u, nx, ny, ng, nfield);
         cudaDeviceSynchronize();
-	speed<<<1,1>>>(cxy, dev_u, nx_all * ny_all, nx_all * ny_all);
+	printf(">>(1)\n");
+	speed<<<1,1>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
         cudaDeviceSynchronize();
+	printf(">>(2)\n");
 	float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
         if (t + 2*dt >= tfinal) {
             dt = (tfinal-t)/2;
             done = true;
         }
-        central2d_step<<<1,1>>>(dev_u, dev_v, dev_scratch, dev_f, dev_g,
+        central2d_step<<<1,1>>>(u, v, scratch, f, g,
                        0, nx+4, ny+4, ng-2,
                        nfield, flux, speed,
                        dt, dx, dy);
         cudaDeviceSynchronize();
-	central2d_step<<<1,1>>>(dev_v, dev_u, dev_scratch, dev_f, dev_g,
+	printf(">>(3)\n");
+	central2d_step<<<1,1>>>(v, u, scratch, f, g,
                        1, nx, ny, ng,
                        nfield, flux, speed,
                        dt, dx, dy);
         cudaDeviceSynchronize();
+	printf(">>(4)\n");
 	t += 2*dt;
         nstep += 2;
     }
+	printf("Done with run sequence\n");
     return nstep;
 }
 
