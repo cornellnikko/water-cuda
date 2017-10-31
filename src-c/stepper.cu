@@ -110,7 +110,7 @@ int central2d_offset(central2d_t* sim, int k, int ix, int iy)
  * to the corresponding canonical values `(ix+p*nx,iy+q*ny)` for some
  * integers `p` and `q`.
  */
-
+__device__
 static inline
 void copy_subgrid(float* __restrict__ dst,
                   const float* __restrict__ src,
@@ -121,6 +121,7 @@ void copy_subgrid(float* __restrict__ dst,
             dst[iy*stride+ix] = src[iy*stride+ix];
 }
 
+__global__
 void central2d_periodic(float* __restrict__ u,
                         int nx, int ny, int ng, int nfield)
 {
@@ -163,6 +164,7 @@ void central2d_periodic(float* __restrict__ u,
 
 
 // Branch-free computation of minmod of two numbers times 2s
+__device__
 static inline
 float xmin2s(float s, float a, float b) {
     float sa = copysignf(s, a);
@@ -175,6 +177,7 @@ float xmin2s(float s, float a, float b) {
 
 
 // Limited combined slope estimate
+__device__
 static inline
 float limdiff(float um, float u0, float up) {
     const float theta = 2.0;
@@ -187,6 +190,7 @@ float limdiff(float um, float u0, float up) {
 
 
 // Compute limited derivs
+__device__
 static inline
 void limited_deriv1(float* __restrict__ du,
                     const float* __restrict__ u,
@@ -198,6 +202,7 @@ void limited_deriv1(float* __restrict__ du,
 
 
 // Compute limited derivs across stride
+__device__
 static inline
 void limited_derivk(float* __restrict__ du,
                     const float* __restrict__ u,
@@ -243,6 +248,7 @@ void limited_derivk(float* __restrict__ du,
 
 
 // Predictor half-step
+__device__
 static
 void central2d_predict(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -269,6 +275,7 @@ void central2d_predict(float* __restrict__ v,
 
 
 // Corrector
+__device__
 static
 void central2d_correct_sd(float* __restrict__ s,
                           float* __restrict__ d,
@@ -293,6 +300,7 @@ void central2d_correct_sd(float* __restrict__ s,
 
 
 // Corrector
+__device__
 static
 void central2d_correct(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -344,7 +352,7 @@ void central2d_correct(float* __restrict__ v,
     }
 }
 
-
+__global__
 static
 void central2d_step(float* __restrict__ u, float* __restrict__ v,
                     float* __restrict__ scratch,
@@ -397,6 +405,7 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
                    float* __restrict__ scratch,
                    float* __restrict__ f,
                    float* __restrict__ g,
+			float* __restrict__ dev_u, float * __restrict__ dev_v, float* __restrict__ dev_f, float* __restrict dev_g, float* __restrict__ dev_scratch,
                    int nx, int ny, int ng,
                    int nfield, flux_t flux, speed_t speed,
                    float tfinal, float dx, float dy, float cfl)
@@ -406,24 +415,33 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
     int ny_all = ny + 2*ng;
     bool done = false;
     float t = 0;
+    
+
+	
+
+
     while (!done) {
         float cxy[2] = {1.0e-15f, 1.0e-15f};
-        central2d_periodic(u, nx, ny, ng, nfield);
-        speed(cxy, u, nx_all * ny_all, nx_all * ny_all);
-        float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
+        central2d_periodic<<<1,1>>>(dev_u, nx, ny, ng, nfield);
+        cudaDeviceSynchronize();
+	speed<<<1,1>>>(cxy, dev_u, nx_all * ny_all, nx_all * ny_all);
+        cudaDeviceSynchronize();
+	float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
         if (t + 2*dt >= tfinal) {
             dt = (tfinal-t)/2;
             done = true;
         }
-        central2d_step(u, v, scratch, f, g,
+        central2d_step<<<1,1>>>(dev_u, dev_v, dev_scratch, dev_f, dev_g,
                        0, nx+4, ny+4, ng-2,
                        nfield, flux, speed,
                        dt, dx, dy);
-        central2d_step(v, u, scratch, f, g,
+        cudaDeviceSynchronize();
+	central2d_step<<<1,1>>>(dev_v, dev_u, dev_scratch, dev_f, dev_g,
                        1, nx, ny, ng,
                        nfield, flux, speed,
                        dt, dx, dy);
-        t += 2*dt;
+        cudaDeviceSynchronize();
+	t += 2*dt;
         nstep += 2;
     }
     return nstep;
@@ -434,6 +452,7 @@ int central2d_run(central2d_t* sim, float tfinal)
 {
     return central2d_xrun(sim->u, sim->v, sim->scratch,
                           sim->f, sim->g,
+			sim->dev_u, sim->dev_v, sim->dev_f, sim->dev_g, sim->dev_scratch,
                           sim->nx, sim->ny, sim->ng,
                           sim->nfield, sim->flux, sim->speed,
                           tfinal, sim->dx, sim->dy, sim->cfl);
