@@ -72,7 +72,7 @@ FILE* viz_open(const char* fname, central2d_t* sim)
 {
     FILE* fp = fopen(fname, "w");
     if (fp) {
-        float xy[2] = {(float)sim->nx, (float)sim->ny};
+        float xy[2] = {sim->nx, sim->ny};
         fwrite(xy, sizeof(float), 2, fp);
     }
     return fp;
@@ -283,7 +283,5 @@ int main(int argc, char** argv)
     if (luaL_dofile(L, argv[1]))
         printf("%s\n", lua_tostring(L,-1));
     lua_close(L);
- 	//cuProfilerStop();   
-	//	cudaProfilerStop();
-return 0;
+    return 0;
 }

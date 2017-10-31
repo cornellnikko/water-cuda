@@ -6,13 +6,6 @@
 #include <assert.h>
 #include <stdbool.h>
 
-#include <stdio.h>
-
-#ifndef THREADS_PER_BLOCK
-	#define THREADS_PER_BLOCK 512
-#endif
-
-
 //ldoc on
 /**
  * ## Implementation
@@ -47,20 +40,6 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
     sim->f  = sim->u + 2*N;
     sim->g  = sim->u + 3*N;
     sim->scratch = sim->u + 4*N;
-	
-	
-	sim->dev_u = (float*) malloc((4*N + 6*nx_all)* sizeof(float));//(float*) malloc(N*sizeof(float));//(float*) malloc((4*N + 6*nx_all)* sizeof(float));
-	sim->dev_v = sim->dev_u + N;
-	sim->dev_f = sim->dev_u + 2*N;
-	sim->dev_g = sim->dev_u + 3*N;
-	sim->scratch = sim->dev_u +4*N;
-	
-	cudaMalloc( (void**)&sim->dev_u, N*sizeof(float));
-	cudaMalloc( (void**)&sim->dev_v, N*sizeof(float));
-	cudaMalloc( (void**)&sim->dev_scratch, N*sizeof(float));
-	cudaMalloc( (void**)&sim->dev_f, N*sizeof(float));
-	cudaMalloc( (void**)&sim->dev_g, N*sizeof(float));	
-	
 
     return sim;
 }
@@ -69,18 +48,6 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
 void central2d_free(central2d_t* sim)
 {
     free(sim->u);
-   /*
-    cudaFree(sim->dev_u);
-    cudaFree(sim->dev_v);
-    cudaFree(sim->dev_f);
-    cudaFree(sim->dev_g);
-    cudaFree(sim->dev_scratch);
-    */
-    free(sim->dev_u);
-    free(sim->dev_v);
-    free(sim->dev_f);
-    free(sim->dev_g);
-    free(sim->dev_scratch);
     free(sim);
 }
 
@@ -108,20 +75,17 @@ int central2d_offset(central2d_t* sim, int k, int ix, int iy)
  * to the corresponding canonical values `(ix+p*nx,iy+q*ny)` for some
  * integers `p` and `q`.
  */
-__device__
- static inline
+
+static inline
 void copy_subgrid(float* __restrict__ dst,
                   const float* __restrict__ src,
                   int nx, int ny, int stride)
 {
-	//int index = blockIdx.x * blockDim.x + threadIdx.x;
-	//int blockStride = blockDim.x * gridDim.x;
-    for (int iy = 0; iy < ny; iy += 1)
+    for (int iy = 0; iy < ny; ++iy)
         for (int ix = 0; ix < nx; ++ix)
             dst[iy*stride+ix] = src[iy*stride+ix];
 }
 
-__global__
 void central2d_periodic(float* __restrict__ u,
                         int nx, int ny, int ng, int nfield)
 {
@@ -164,7 +128,6 @@ void central2d_periodic(float* __restrict__ u,
 
 
 // Branch-free computation of minmod of two numbers times 2s
-__device__
 static inline
 float xmin2s(float s, float a, float b) {
     float sa = copysignf(s, a);
@@ -177,8 +140,7 @@ float xmin2s(float s, float a, float b) {
 
 
 // Limited combined slope estimate
-__device__
- static inline
+static inline
 float limdiff(float um, float u0, float up) {
     const float theta = 2.0;
     const float quarter = 0.25;
@@ -190,7 +152,6 @@ float limdiff(float um, float u0, float up) {
 
 
 // Compute limited derivs
-__device__ 
 static inline
 void limited_deriv1(float* __restrict__ du,
                     const float* __restrict__ u,
@@ -202,8 +163,7 @@ void limited_deriv1(float* __restrict__ du,
 
 
 // Compute limited derivs across stride
-__device__
- static inline
+static inline
 void limited_derivk(float* __restrict__ du,
                     const float* __restrict__ u,
                     int ncell, int stride)
@@ -248,7 +208,6 @@ void limited_derivk(float* __restrict__ du,
 
 
 // Predictor half-step
-__device__
 static
 void central2d_predict(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -275,7 +234,6 @@ void central2d_predict(float* __restrict__ v,
 
 
 // Corrector
-__device__
 static
 void central2d_correct_sd(float* __restrict__ s,
                           float* __restrict__ d,
@@ -300,7 +258,6 @@ void central2d_correct_sd(float* __restrict__ s,
 
 
 // Corrector
-__device__
 static
 void central2d_correct(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -352,7 +309,7 @@ void central2d_correct(float* __restrict__ v,
     }
 }
 
-__global__
+
 static
 void central2d_step(float* __restrict__ u, float* __restrict__ v,
                     float* __restrict__ scratch,
@@ -399,16 +356,12 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
  * We always take an even number of steps so that the solution
  * at the end lives on the main grid instead of the staggered grid.
  */
+
 static
 int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
                    float* __restrict__ scratch,
                    float* __restrict__ f,
                    float* __restrict__ g,
-			float* __restrict__ dev_u,
-			float* __restrict__ dev_v,
-			float* __restrict__ dev_scratch,
-			float* __restrict__ dev_f,
-			float* __restrict__ dev_g,
                    int nx, int ny, int ng,
                    int nfield, flux_t flux, speed_t speed,
                    float tfinal, float dx, float dy, float cfl)
@@ -418,74 +371,26 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
     int ny_all = ny + 2*ng;
     bool done = false;
     float t = 0;
-
-
-   
-    int nc = nx_all * ny_all;
-    int N  = nfield * nc;
-
-	// move host memory to device
-	// TODO correct fsize
-	int fsize = N * sizeof(float);
-	int bigsize = ((4*N + 6*nx_all)*sizeof(float));
-	
-	/*
-	cudaMalloc( (void**)&dev_u, bigsize);
-	cudaMalloc( (void**)&dev_v, fsize);
-	
-	cudaMalloc( (void**)&dev_scratch, fsize);
-	cudaMalloc( (void**)&dev_f, fsize);
-	cudaMalloc( (void**)&dev_g, fsize);	
-	*/
-	cudaMemcpy( dev_u, u, fsize, cudaMemcpyHostToDevice);
-	cudaMemcpy( dev_v, v, fsize, cudaMemcpyHostToDevice);
-	cudaMemcpy( dev_scratch, scratch, fsize, cudaMemcpyHostToDevice);
-	cudaMemcpy( dev_f, f, fsize, cudaMemcpyHostToDevice);
-	cudaMemcpy( dev_g, g, fsize, cudaMemcpyHostToDevice);
-
-
-	printf(">Allocation complete \n");
     while (!done) {
         float cxy[2] = {1.0e-15f, 1.0e-15f};
-        central2d_periodic<<<1,1>>>(u, nx, ny, ng, nfield);
-        cudaDeviceSynchronize();
-	printf(">>Periodic done\n");
-	speed<<<1,1>>>(cxy, dev_u, nx_all * ny_all, nx_all * ny_all);
-        printf(">>Speed done\n");
-	cudaDeviceSynchronize();
-	float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
+        central2d_periodic(u, nx, ny, ng, nfield);
+        speed(cxy, u, nx_all * ny_all, nx_all * ny_all);
+        float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
         if (t + 2*dt >= tfinal) {
             dt = (tfinal-t)/2;
             done = true;
         }
-	printf(">>Calcystuff done\n");
-        central2d_step<<<1,1>>>(dev_u, dev_v, dev_scratch, dev_f, dev_g,
+        central2d_step(u, v, scratch, f, g,
                        0, nx+4, ny+4, ng-2,
                        nfield, flux, speed,
                        dt, dx, dy);
-	cudaDeviceSynchronize();
-	printf(">>2d step 1 done\n");
-        central2d_step<<<1,1>>>(dev_v, dev_u, dev_scratch, dev_f, dev_g,
+        central2d_step(v, u, scratch, f, g,
                        1, nx, ny, ng,
                        nfield, flux, speed,
                        dt, dx, dy);
-	cudaDeviceSynchronize();
-	printf(">>2d step 2 done\n");
         t += 2*dt;
         nstep += 2;
     }
-	
-	printf(">Calculation round complete \n");
-
-	//  move device memory back to host
-	cudaMemcpy( u, dev_u, fsize, cudaMemcpyDeviceToHost);
-        cudaMemcpy( v, dev_v, fsize, cudaMemcpyDeviceToHost);
-        cudaMemcpy( scratch, dev_scratch, fsize, cudaMemcpyDeviceToHost);
-        cudaMemcpy( f, dev_f, fsize, cudaMemcpyDeviceToHost);
-        cudaMemcpy( g, dev_g, fsize, cudaMemcpyDeviceToHost);
-
-	printf("Memory re-transferred \n");
-
     return nstep;
 }
 
@@ -494,7 +399,6 @@ int central2d_run(central2d_t* sim, float tfinal)
 {
     return central2d_xrun(sim->u, sim->v, sim->scratch,
                           sim->f, sim->g,
-			  sim->dev_u, sim->dev_v, sim->dev_scratch, sim->dev_f, sim->dev_g,
                           sim->nx, sim->ny, sim->ng,
                           sim->nfield, sim->flux, sim->speed,
                           tfinal, sim->dx, sim->dy, sim->cfl);
