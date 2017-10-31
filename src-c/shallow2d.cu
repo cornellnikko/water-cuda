@@ -78,7 +78,19 @@ void shallow2dv_speed(float* __restrict__ cxy,
     cxy[1] = cy;
 }
 
-__global__
+/* do i need this
+__device__
+void shallow2d_flux(float* FU, float* GU,const float* U,
+                    int ncell, int field_stride)
+{
+    shallow2dv_flux(FU, FU+field_stride, FU+2*field_stride,
+                    GU, GU+field_stride, GU+2*field_stride,
+                    U,  U +field_stride, U +2*field_stride,
+                    g, ncell);
+}
+*/
+
+__device__
 void shallow2d_flux(float* FU, float* GU,const float* U,
                     int ncell, int field_stride)
 {

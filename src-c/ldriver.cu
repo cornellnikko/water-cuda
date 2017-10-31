@@ -283,5 +283,7 @@ int main(int argc, char** argv)
     if (luaL_dofile(L, argv[1]))
         printf("%s\n", lua_tostring(L,-1));
     lua_close(L);
-    return 0;
+ 	//cuProfilerStop();   
+	//	cudaProfilerStop();
+return 0;
 }
