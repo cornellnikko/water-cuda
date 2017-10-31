@@ -41,6 +41,29 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
     sim->g  = sim->u + 3*N;
     sim->scratch = sim->u + 4*N;
 
+
+	int fsize = N * sizeof(float);
+	sim->dev_u = (float*) malloc((4*N + 6*nx_all)* sizeof(float));//(float*) malloc(N*sizeof(float));//(float*) malloc((4*N + 6*nx_all)* sizeof(float));
+	sim->dev_v = sim->dev_u + N;
+	sim->dev_f = sim->dev_u + 2*N;
+	sim->dev_g = sim->dev_u + 3*N;
+	sim->scratch = sim->dev_u +4*N;
+	
+	
+
+	/*
+	cudaMalloc( (void**)&sim->dev_u, (4*N + 6*nx_all)* sizeof(float));
+	cudaMalloc( (void**)&sim->dev_v, N*sizeof(float));
+	cudaMalloc( (void**)&sim->dev_f, N*sizeof(float));
+	cudaMalloc( (void**)&sim->dev_g, N*sizeof(float));	
+	cudaMalloc( (void**)&sim->dev_scratch, N*sizeof(float));
+
+	cudaMemcpy( dev_u, u, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( dev_v, v, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( dev_f, f, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( dev_g, g, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( dev_scratch, scratch, fsize, cudaMemcpyHostToDevice);
+	*/
     return sim;
 }
 
@@ -48,6 +71,18 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
 void central2d_free(central2d_t* sim)
 {
     free(sim->u);
+
+	cudaFree(sim->dev_u);
+    cudaFree(sim->dev_v);
+    cudaFree(sim->dev_f);
+    cudaFree(sim->dev_g);
+    cudaFree(sim->dev_scratch);
+    free(sim->dev_u);
+    free(sim->dev_v);
+    free(sim->dev_f);
+    free(sim->dev_g);
+    free(sim->dev_scratch);
+
     free(sim);
 }
 

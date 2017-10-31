@@ -56,6 +56,13 @@ typedef struct central2d_t {
     float* g;
     float* scratch;
 
+	// References to CUDA storage
+	float *dev_u;
+	float *dev_v;
+	float *dev_f;
+	float *dev_g;
+	float *dev_scratch;
+
 } central2d_t;
 
 
@@ -106,6 +113,7 @@ int central2d_run(central2d_t* sim, float tfinal);
  * for applying the BCs.
  *
  */
+__global__
 void central2d_periodic(float* u, int nx, int ny, int ng, int nfield);
 
 //ldoc off
