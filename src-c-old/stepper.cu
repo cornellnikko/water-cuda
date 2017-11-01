@@ -66,7 +66,7 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
 	cudaMalloc( (void**)&sim->dev_scratch, N*sizeof(float));
 	cudaMalloc( (void**)&sim->dev_f, N*sizeof(float));
 	cudaMalloc( (void**)&sim->dev_g, N*sizeof(float));	
-	
+	cudaDeviceSynchronize();
 
     return sim;
 }
@@ -75,18 +75,11 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
 void central2d_free(central2d_t* sim)
 {
     free(sim->u);
-   /*
     cudaFree(sim->dev_u);
     cudaFree(sim->dev_v);
     cudaFree(sim->dev_f);
     cudaFree(sim->dev_g);
     cudaFree(sim->dev_scratch);
-    */
-    free(sim->dev_u);
-    free(sim->dev_v);
-    free(sim->dev_f);
-    free(sim->dev_g);
-    free(sim->dev_scratch);
     free(sim);
 }
 
@@ -441,30 +434,29 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
 	int fsize = N * sizeof(float);
 	int bigsize = ((4*N + 6*nx_all)*sizeof(float));
 	
-	/*
-	cudaMalloc( (void**)&dev_u, bigsize);
-	cudaMalloc( (void**)&dev_v, fsize);
 	
-	cudaMalloc( (void**)&dev_scratch, fsize);
-	cudaMalloc( (void**)&dev_f, fsize);
-	cudaMalloc( (void**)&dev_g, fsize);	
-	*/
 
 	cudaMemcpy( dev_u, u, fsize, cudaMemcpyHostToDevice);
 	cudaMemcpy( dev_v, v, fsize, cudaMemcpyHostToDevice);
 	cudaMemcpy( dev_scratch, scratch, fsize, cudaMemcpyHostToDevice);
 	cudaMemcpy( dev_f, f, fsize, cudaMemcpyHostToDevice);
 	cudaMemcpy( dev_g, g, fsize, cudaMemcpyHostToDevice);
-
+	cudaDeviceSynchronize();
+	
+	
 
 	printf(">Allocation complete \n");
     while (!done) {
         float cxy[2] = {1.0e-15f, 1.0e-15f};
-        central2d_periodic<<<1,1>>>(dev_u, nx, ny, ng, nfield);
+        float *dev_cxy;
+	cudaMemcpy( dev_cxy, cxy, 2 * sizeof(float), cudaMemcpyHostToDevice);
+	central2d_periodic<<<1,1>>>(dev_u, nx, ny, ng, nfield);
         cudaDeviceSynchronize();
 	printf(">>Periodic done\n");
 	speed<<<1,1>>>(cxy, dev_u, nx_all * ny_all, nx_all * ny_all);
         printf(">>Speed done\n");
+	cudaDeviceSynchronize();
+        cudaMemcpy( dev_cxy, cxy, 2 * sizeof(float), cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();
 	float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
         if (t + 2*dt >= tfinal) {
@@ -497,7 +489,7 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
         cudaMemcpy( scratch, dev_scratch, fsize, cudaMemcpyDeviceToHost);
         cudaMemcpy( f, dev_f, fsize, cudaMemcpyDeviceToHost);
         cudaMemcpy( g, dev_g, fsize, cudaMemcpyDeviceToHost);
-
+	cudaDeviceSynchronize();
 
 	printf("Memory re-transferred \n");
 

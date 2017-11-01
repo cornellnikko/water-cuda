@@ -91,7 +91,8 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
 }
 
 
-__global__
+//__global__
+/*
 void cuda_module_init(float* u, float* v, float* f, float* g, float* scratch, int N)
 {
 	v = u + N;
@@ -99,6 +100,7 @@ void cuda_module_init(float* u, float* v, float* f, float* g, float* scratch, in
 	g = u + 3*N;
 	scratch = u + 3*N;
 }
+*/
 
 void central2d_free(central2d_t* sim)
 {
