@@ -13,7 +13,7 @@ ldriver.o: ldriver.cu shallow2d.h
 shallow2d.o: shallow2d.cu
 	$(NVCC) $(NVCFLAGS) -c $<
 
-stepper.o: stepper.cu
+stepper.o: stepper.cu shallow2d.o
 	$(NVCC) $(NVCCFLAGS) -c $<
 
 # ===

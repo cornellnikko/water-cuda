@@ -8,7 +8,7 @@ CXXFLAGS=-std=c++14 -g
 
 # CUDA compiler and flags
 NVCC=nvcc
-NVCCFLAGS=-O3 -std=c++11 -G -g
+NVCCFLAGS=-O3 -std=c++11 -G -g -rdc=true
 #NVCCFLAGS=-O3 -std=c99
 
 # Optimization flags

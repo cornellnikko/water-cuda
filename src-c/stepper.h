@@ -1,6 +1,6 @@
 #ifndef STEPPER_H
 #define STEPPER_H
-
+//#include "shallow2d.h"
 #include <math.h>
 
 //ldoc
@@ -64,7 +64,7 @@ typedef struct central2d_t {
 	float *dev_f;
 	float *dev_g;
 	float *dev_scratch;
-
+	flux_t dev_flux;
 } central2d_t;
 
 __global__
