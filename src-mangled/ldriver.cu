@@ -36,10 +36,13 @@
 void solution_check(central2d_t* sim)
 {
     int nx = sim->nx, ny = sim->ny;
+	printf("a\n");
     float* u = sim->u;
+printf("b\n");
     float h_sum = 0, hu_sum = 0, hv_sum = 0;
     float hmin = u[central2d_offset(sim,0,0,0)];
-    float hmax = hmin;
+printf("c\n");    
+float hmax = hmin;
     for (int j = 0; j < ny; ++j)
         for (int i = 0; i < nx; ++i) {
             float h = u[central2d_offset(sim,0,i,j)];
@@ -49,13 +52,18 @@ void solution_check(central2d_t* sim)
             hmax = fmaxf(h, hmax);
             hmin = fminf(h, hmin);
         }
+printf("e\n");
     float cell_area = sim->dx * sim->dy;
     h_sum *= cell_area;
     hu_sum *= cell_area;
     hv_sum *= cell_area;
-    printf("-\n  Volume: %g\n  Momentum: (%g, %g)\n  Range: [%g, %g]\n",
+printf("f\n");
+  
+printf("-\n  Volume: %g\n  Momentum: (%g, %g)\n  Range: [%g, %g]\n",
            h_sum, hu_sum, hv_sum, hmin, hmax);
+
     assert(hmin > 0);
+	
 }
 
 /**
@@ -72,7 +80,7 @@ FILE* viz_open(const char* fname, central2d_t* sim)
 {
     FILE* fp = fopen(fname, "w");
     if (fp) {
-        float xy[2] = {(float)sim->nx,(float) sim->ny};
+        float xy[2] =  {(float)sim->nx, (float)sim->ny};
         fwrite(xy, sizeof(float), 2, fp);
     }
     return fp;
@@ -208,12 +216,13 @@ int run_sim(lua_State* L)
     double cfl = lget_number(L, "cfl", 0.45);
     double ftime = lget_number(L, "ftime", 0.01);
     int nx = lget_int(L, "nx", 200);
-    int ny = lget_int(L, "ny", nx);
+    //int nx = lget_int(L, "nx", 50);
+	int ny = lget_int(L, "ny", nx);
     int frames = lget_int(L, "frames", 50);
     const char* fname = lget_string(L, "out", "sim.out");
 
     central2d_t* sim = central2d_init(w,h, nx,ny,
-                                      3, shallow2d_flux, shallow2d_speed, cfl);
+                                      3,  shallow2d_speed, cfl);
     lua_init_sim(L,sim);
     printf("%g %g %d %d %g %d %g\n", w, h, nx, ny, cfl, frames, ftime);
     FILE* viz = viz_open(fname, sim);
@@ -237,6 +246,7 @@ int run_sim(lua_State* L)
         int nstep = central2d_run(sim, ftime);
         double elapsed = 0;
 #endif
+	printf("Ready to check solution\n");
         solution_check(sim);
         tcompute += elapsed;
         printf("  Time: %e (%e for %d steps)\n", elapsed, elapsed/nstep, nstep);

@@ -501,14 +501,14 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
         cudaMemcpy( g, dev_g, fsize, cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();
 
-	u = dev_u;
-	v = dev_v;
-	scratch = dev_scratch;
-	f = dev_f;
-	g = dev_v;
+	//u = dev_u;
+	//v = dev_v;
+	//scratch = dev_scratch;
+	//f = dev_f;
+	//g = dev_v;
 
 	printf("Memory re-transferred \n");
-
+	assert(1==0);
     return nstep;
 }
 

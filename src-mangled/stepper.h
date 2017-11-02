@@ -1,6 +1,6 @@
 #ifndef STEPPER_H
 #define STEPPER_H
-
+//#include "shallow2d.h"
 #include <math.h>
 
 //ldoc
@@ -18,11 +18,27 @@
  * of the solution and fluxes are separated by `field_stride`.
  *
  */
+//__device__
+/*
 typedef void (*flux_t)(float* FU, float* GU, const float* U,
                        int ncell, int field_stride);
+*/
+//__device__
 typedef void (*speed_t)(float* cxy, const float* U,
                         int ncell, int field_stride);
 
+__device__ 
+void shallow2d_flux(float* __restrict__ fh,
+                     float* __restrict__ fhu,
+                     float* __restrict__ fhv,
+                     float* __restrict__ gh,
+                     float* __restrict__ ghu,
+                     float* __restrict__ ghv,
+                     const float* __restrict__ h,
+                     const float* __restrict__ hu,
+                     const float* __restrict__ hv,
+                     float g,
+                     int ncell);
 
 /**
  * ### Solver data structure
@@ -46,10 +62,8 @@ typedef struct central2d_t {
     float cfl;    // Max allowed CFL number
 
     // Flux and speed functions
-    flux_t flux;
+    //flux_t flux;
     speed_t speed;
-
-	flux_t *dev_flux;
 
     // Storage
     float* u;
@@ -58,8 +72,17 @@ typedef struct central2d_t {
     float* g;
     float* scratch;
 
+	// References to CUDA storage
+	float *dev_u;
+	float *dev_v;
+	float *dev_f;
+	float *dev_g;
+	float *dev_scratch;
+//	flux_t dev_flux;
 } central2d_t;
 
+__global__
+void cuda_module_init(float* u, float* v, float* f, float* g, float* scratch, int N);
 
 /**
  * For the most part, we treat the `central2d_t` as a read-only
@@ -68,7 +91,7 @@ typedef struct central2d_t {
  *
  */
 central2d_t* central2d_init(float w, float h, int nx, int ny,
-                            int nfield, flux_t flux, speed_t speed,
+                            int nfield, speed_t speed,
                             float cfl);
 void central2d_free(central2d_t* sim);
 

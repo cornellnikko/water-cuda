@@ -1,12 +1,12 @@
 #include "stepper.h"
-
-#include "shallow2d.h"
+//#include "shallow2d.cu"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
+
 //ldoc on
 /**
  * ## Implementation
@@ -15,61 +15,132 @@
  */
 
 central2d_t* central2d_init(float w, float h, int nx, int ny,
-                            int nfield, flux_t flux, speed_t speed,
+                            int nfield, speed_t speed,
                             float cfl)
 {
     // We extend to a four cell buffer to avoid BC comm on odd time steps
     int ng = 4;
 
     central2d_t* sim = (central2d_t*) malloc(sizeof(central2d_t));
+//	cudaMallocManaged(&sim, sizeof(central2d_t));
     sim->nx = nx;
     sim->ny = ny;
     sim->ng = ng;
     sim->nfield = nfield;
     sim->dx = w/nx;
+
     sim->dy = h/ny;
-    sim->flux = flux;
 	
-//	cudaMalloc((void**)sim->dev_flux, sizeof(flux_t));
-//	cudaMemcpy(sim->dev_flux,sim->flux, sizeof(flux_t),  cudaMemcpyHostToDevice);
-//	cudaMemcpyFromSymbol(&speed, shallow2d_speed, sizeof(speed_t));
-
-
-//cudaMallocManaged(&sim->flux, sizeof(flux_t));
+    //sim->flux = flux;
     sim->speed = speed;
     sim->cfl = cfl;
+
+//	cudaMemcpyFromSymbol(&sim->flux, flux, sizeof(flux_t));
+
+  //      cudaMemcpyFromSymbol(&sim->speed, speed, sizeof(speed_t));
 
     int nx_all = nx + 2*ng;
     int ny_all = ny + 2*ng;
     int nc = nx_all * ny_all;
     int N  = nfield * nc;
 
-	cudaMallocManaged(&sim->u, (4*N + 6*nx_all) * sizeof(float));
-	cudaDeviceSynchronize();
     //sim->u  = (float*) malloc((4*N + 6*nx_all)* sizeof(float));
-    sim->v  = sim->u +   N;
-    sim->f  = sim->u + 2*N;
-    sim->g  = sim->u + 3*N;
-    sim->scratch = sim->u + 4*N;
+    //sim->v  = sim->u +   N;
+    //sim->f  = sim->u + 2*N;
+    //sim->g  = sim->u + 3*N;
+    //sim->scratch = sim->u + 4*N;
 
+//	cudaMallocManaged(&sim, sizeof(central2d_t));
+
+
+
+
+	cudaMallocManaged(&sim->u, (4*N + 6*nx_all)* sizeof(float));
+	cudaMallocManaged(&sim->v, sizeof(float));
+	cudaMallocManaged(&sim->f, sizeof(float));
+  	cudaMallocManaged(&sim->g, sizeof(float));
+	cudaMallocManaged(&sim->scratch, sizeof(float));
+	sim->v = sim->u + N;
+	sim->f = sim->u + 2*N;
+	sim->g = sim->u + 3*N;
+	sim->scratch = sim->u + 3*N;
 	cudaDeviceSynchronize();
+
+   // sim->v  = sim->u +   N;
+   // sim->f  = sim->u + 2*N;
+   // sim->g  = sim->u + 3*N;
+   // sim->scratch = sim->u + 4*N;
+/*
+	sim->dev_flux = flux;
+	cudaMalloc((void**)&sim->flux, sizeof(flux_t));
+	cudaMemcpy(sim->dev_flux, sim->flux, sizeof(flux_t), cudaMemcpyHostToDevice);
+*/
+	//cuda_module_init<<<1,1>>>(sim->u,sim->v,sim->f,sim->g,sim->scratch, N);
+	//cudaDeviceSynchronize();
+	
+	int fsize = N * sizeof(float);
+	sim->dev_u = (float*) malloc((4*N + 6*nx_all)* sizeof(float));//(float*) malloc(N*sizeof(float));//(float*) malloc((4*N + 6*nx_all)* sizeof(float));
+	sim->dev_v = sim->dev_u + N;
+	sim->dev_f = sim->dev_u + 2*N;
+	sim->dev_g = sim->dev_u + 3*N;
+	sim->scratch = sim->dev_u +4*N;
+	
+	cudaMalloc( (void**)&sim->dev_u, (4*N + 6*nx_all)* sizeof(float));
+	cudaMalloc( (void**)&sim->dev_v, N*sizeof(float));
+	cudaMalloc( (void**)&sim->dev_f, N*sizeof(float));
+	cudaMalloc( (void**)&sim->dev_g, N*sizeof(float));	
+	cudaMalloc( (void**)&sim->dev_scratch, N*sizeof(float));
+		
+	cudaMemcpy( sim->dev_u, sim->u, (4*N + 6*nx_all)* sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy( sim->dev_v, sim->v, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( sim->dev_f, sim->f, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( sim->dev_g, sim->g, fsize, cudaMemcpyHostToDevice);
+	cudaMemcpy( sim->dev_scratch, sim->scratch, fsize, cudaMemcpyHostToDevice);
+	
 
     return sim;
 }
 
 
+//__global__
+/*
+void cuda_module_init(float* u, float* v, float* f, float* g, float* scratch, int N)
+{
+	v = u + N;
+	f = u + 2*N;
+	g = u + 3*N;
+	scratch = u + 3*N;
+}
+*/
+
 void central2d_free(central2d_t* sim)
 {
     free(sim->u);
+
+	cudaFree(sim->dev_u);
+    cudaFree(sim->dev_v);
+    cudaFree(sim->dev_f);
+    cudaFree(sim->dev_g);
+    cudaFree(sim->dev_scratch);
+    free(sim->dev_u);
+    free(sim->dev_v);
+    free(sim->dev_f);
+    free(sim->dev_g);
+    free(sim->dev_scratch);
+
     free(sim);
 }
 
 
 int central2d_offset(central2d_t* sim, int k, int ix, int iy)
 {
+//	printf("b1\n");
     int nx = sim->nx, ny = sim->ny, ng = sim->ng;
-    int nx_all = nx + 2*ng;
-    int ny_all = ny + 2*ng;
+//    printf("b2\n");
+	int nx_all = nx + 2*ng;
+//	printf("b3\n");    
+int ny_all = ny + 2*ng;
+//printf("b4\n");
     return (k*ny_all+(ng+iy))*nx_all+(ng+ix);
 }
 
@@ -88,7 +159,6 @@ int central2d_offset(central2d_t* sim, int k, int ix, int iy)
  * to the corresponding canonical values `(ix+p*nx,iy+q*ny)` for some
  * integers `p` and `q`.
  */
-
 __device__
 static inline
 void copy_subgrid(float* __restrict__ dst,
@@ -280,6 +350,7 @@ void central2d_correct_sd(float* __restrict__ s,
 
 // Corrector
 __device__
+//__global__
 static
 void central2d_correct(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -330,7 +401,6 @@ void central2d_correct(float* __restrict__ v,
         }
     }
 }
-
 __global__
 static
 void central2d_step(float* __restrict__ u, float* __restrict__ v,
@@ -338,38 +408,85 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
                     float* __restrict__ f,
                     float* __restrict__ g,
                     int io, int nx, int ny, int ng,
-                    int nfield, flux_t flux, speed_t speed,
+                    int nfield, speed_t speed,
                     float dt, float dx, float dy)
 {
     int nx_all = nx + 2*ng;
     int ny_all = ny + 2*ng;
-
+	printf("KERNEL: IN\n");
+	printf("KERNEL: %f, %f, %f, %f, %f, %i, %i, %i \n",u[0], v[0], scratch[0], f[0], g[0], nx, ny, ng);
     float dtcdx2 = 0.5 * dt / dx;
     float dtcdy2 = 0.5 * dt / dy;
+	int ncell = nx_all * ny_all;
+	int field_stride = nx_all * ny_all;
 
-	printf("KERNEL: central2d_step:flux\n");
+	float gravity = 9.8;
+	printf("KERNEL: Before flux\n");
+//    shallow2d_flux(f, g, u, nx_all * ny_all, nx_all * ny_all);
+	
+	shallow2d_flux(f,f+field_stride,f+2*field_stride,g,g+field_stride,g+2*field_stride,u,u+field_stride,u+2*field_stride,gravity,ncell);	
+/*
+	memcpy(fh, hu, ncell * sizeof(float));
+    memcpy(gh, hv, ncell * sizeof(float));
+    //cudaMemcpy(fh, hu, ncell * sizeof(float), cudaMemcpyDeviceToDevice);
+    //cudaMemcpy(gh, hv, ncell * sizeof(float), cudaMemcpyDeviceToDevice);
 
-    shallow2d_flux(f, g, u, nx_all * ny_all, nx_all * ny_all);
+    for (int i = 0; i < ncell; ++i) {
+        float hi = h[i], hui = hu[i], hvi = hv[i];
+        float inv_h = 1/hi;
+        fhu[i] = hui*hui*inv_h + (0.5f*gravity)*hi*hi;
+        fhv[i] = hui*hvi*inv_h;
+        ghu[i] = hui*hvi*inv_h;
+        ghv[i] = hvi*hvi*inv_h + (0.5f*gravity)*hi*hi;
+    }
+	*/
 
-	printf("KERNEL: central2d_step:central2d_periodic\n");
-
-    central2d_predict(v, scratch, u, f, g, dtcdx2, dtcdy2,
+   	printf("KERNEL: Before 2d_predict\n");
+	 central2d_predict(v, scratch, u, f, g, dtcdx2, dtcdy2,
                       nx_all, ny_all, nfield);
-
-	printf("KERNEL: central2d_step:flux loop\n");
-
-    // Flux values of f and g at half step
+	printf("KERNEL: before half step loop\n");	
+ // Flux values of f and g at half step
     for (int iy = 1; iy < ny_all-1; ++iy) {
         int jj = iy*nx_all+1;
-        shallow2d_flux(f+jj, g+jj, v+jj, nx_all-2, nx_all * ny_all);
+        shallow2d_flux(f+jj,f+jj+field_stride,f+jj+2*field_stride, g+jj, g+jj+field_stride, g+jj+2*field_stride, v+jj, v+jj+field_stride, v+jj+2*field_stride, gravity, nx_all-2);
+	
     }
-
-	printf("KERNEL: central2d_step:central2d_correct\n");
-
+	printf("kernel: CORRECT\n");
     central2d_correct(v+io*(nx_all+1), scratch, u, f, g, dtcdx2, dtcdy2,
                       ng-io, nx+ng-io,
                       ng-io, ny+ng-io,
                       nx_all, ny_all, nfield);
+}
+
+__device__
+void shallow2d_flux(float* __restrict__ fh,
+                     float* __restrict__ fhu,
+                     float* __restrict__ fhv,
+                     float* __restrict__ gh,
+                     float* __restrict__ ghu,
+                     float* __restrict__ ghv,
+                     const float* __restrict__ h,
+                     const float* __restrict__ hu,
+                     const float* __restrict__ hv,
+                     float g,
+                     int ncell)
+{
+    memcpy(fh, hu, ncell * sizeof(float));
+    memcpy(gh, hv, ncell * sizeof(float));
+    //cudaMemcpy(fh, hu, ncell * sizeof(float), cudaMemcpyDeviceToDevice);
+    //cudaMemcpy(gh, hv, ncell * sizeof(float), cudaMemcpyDeviceToDevice);
+
+	int index = blockIdx.x * blockDim.x + threadIdx.x;
+  	int stride = blockDim.x * gridDim.x;
+
+    for (int i = index; i < ncell; ++stride) {
+        float hi = h[i], hui = hu[i], hvi = hv[i];
+        float inv_h = 1/hi;
+        fhu[i] = hui*hui*inv_h + (0.5f*g)*hi*hi;
+        fhv[i] = hui*hvi*inv_h;
+        ghu[i] = hui*hvi*inv_h;
+        ghv[i] = hvi*hvi*inv_h + (0.5f*g)*hi*hi;
+    }
 }
 
 
@@ -392,8 +509,9 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
                    float* __restrict__ scratch,
                    float* __restrict__ f,
                    float* __restrict__ g,
+			float* __restrict__ dev_u, float * __restrict__ dev_v, float* __restrict__ dev_f, float* __restrict dev_g, float* __restrict__ dev_scratch,
                    int nx, int ny, int ng,
-                   int nfield, flux_t flux, speed_t speed,
+                   int nfield, speed_t speed,
                    float tfinal, float dx, float dy, float cfl)
 {
     int nstep = 0;
@@ -401,49 +519,58 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
     int ny_all = ny + 2*ng;
     bool done = false;
     float t = 0;
+    
 
-	float *cxy;
-	cudaMallocManaged(&cxy, 2*sizeof(float));
+	
+	float *cxy;// = (float*) malloc(2*sizeof(float));; //{1.0e-15f, 1.0e-15f};
+        cudaMallocManaged(&cxy, 2*sizeof(float));	
+	cxy[0] = 1.0e-15f;
+        cxy[1] = 1.0e-15f;
 	cudaDeviceSynchronize();
+	
+
 
     while (!done) {
-	printf("Run0\n");
-        cxy[0] = 1.0e-15f;
+	printf(">>(0)\n");
+        //float *cxy;// = (float*) malloc(2*sizeof(float));; //{1.0e-15f, 1.0e-15f};
+        //cudaMallocManaged(&cxy, 2*sizeof(float));
+	//cudaDeviceSynchronize();
+	printf(">>(0.0)\n");
+	cxy[0] = 1.0e-15f;
 	cxy[1] = 1.0e-15f;
-	printf("Run1\n");
-	cudaDeviceSynchronize();
-        printf("ADDRESSES %f %f %f %f %f\n",*u, *v, *f, *g, *scratch);
+	printf(">>(0.1)\n");
 	central2d_periodic<<<1,1>>>(u, nx, ny, ng, nfield);
-	cudaDeviceSynchronize();
-	printf("Run2\n");	
+        cudaDeviceSynchronize();
+	printf(">>(1)\n");
 	speed<<<1,1>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
         cudaDeviceSynchronize();
-	printf("Run3\n");	
+	printf(">>(2): %f, %f\n",cxy[0], cxy[1]);
 	float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
-        if (t + 2*dt >= tfinal) {
+        printf(">>(2a)\n");
+	if (t + 2*dt >= tfinal) {
             dt = (tfinal-t)/2;
             done = true;
         }
-	cudaDeviceSynchronize();
-	printf("Run4\n");
-        central2d_step<<<1,1>>>(u, v, scratch, f, g,
+	printf(">>(2b)\n");
+        printf("ON DEVICE: %f, %f, %f, %f, %f, %i, %i, %i \n",u[0], v[0], scratch[0], f[0], g[0], nx+4, ny+4, ng-2);
+	central2d_step<<<1,1>>>(u, v, scratch, f, g,
                        0, nx+4, ny+4, ng-2,
-                       nfield, flux, speed,
+                       nfield, speed,
                        dt, dx, dy);
         cudaDeviceSynchronize();
-	printf("Run5\n");
+	printf(">>(3)\n");
 	central2d_step<<<1,1>>>(v, u, scratch, f, g,
                        1, nx, ny, ng,
-                       nfield, flux, speed,
+                       nfield, speed,
                        dt, dx, dy);
-	cudaDeviceSynchronize();
-	printf("Run6\n");
-        t += 2*dt;
+        cudaDeviceSynchronize();
+	printf(">>(4)\n");
+	t += 2*dt;
         nstep += 2;
     }
-
+	
 	cudaFree(cxy);
-
+	printf("Done with run sequence\n");
     return nstep;
 }
 
@@ -452,7 +579,8 @@ int central2d_run(central2d_t* sim, float tfinal)
 {
     return central2d_xrun(sim->u, sim->v, sim->scratch,
                           sim->f, sim->g,
+			sim->dev_u, sim->dev_v, sim->dev_f, sim->dev_g, sim->dev_scratch,
                           sim->nx, sim->ny, sim->ng,
-                          sim->nfield, sim->flux, sim->speed,
+                          sim->nfield,  sim->speed,
                           tfinal, sim->dx, sim->dy, sim->cfl);
 }

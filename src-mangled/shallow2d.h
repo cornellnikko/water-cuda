@@ -50,11 +50,11 @@
  * the $x$ momentum is at `U+field_stride`, and the start of the
  * $y$ momentum is at `U+2*field_stride`.
  */
-
-__device__ 
-void shallow2d_flux(float* FU, float* GU, const float* U,
+/*`
+__host__ __device__
+extern void shallow2d_flux(float* FU, float* GU, const float* U,
                     int ncell, int field_stride);
-
+*/
 __global__
 void shallow2d_speed(float* cxy, const float* U,
                      int ncell, int field_stride);

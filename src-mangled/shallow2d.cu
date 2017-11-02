@@ -16,8 +16,8 @@
 
 
 static const float g = 9.8;
-
-__device__
+/*
+__host__ __device__
 static
 void shallow2dv_flux(float* __restrict__ fh,
                      float* __restrict__ fhu,
@@ -31,9 +31,11 @@ void shallow2dv_flux(float* __restrict__ fh,
                      float g,
                      int ncell)
 {
-	printf("KERNEL: Flux inner\n");
     memcpy(fh, hu, ncell * sizeof(float));
     memcpy(gh, hv, ncell * sizeof(float));
+    //cudaMemcpy(fh, hu, ncell * sizeof(float), cudaMemcpyDeviceToDevice);
+    //cudaMemcpy(gh, hv, ncell * sizeof(float), cudaMemcpyDeviceToDevice);
+
     for (int i = 0; i < ncell; ++i) {
         float hi = h[i], hui = hu[i], hvi = hv[i];
         float inv_h = 1/hi;
@@ -43,7 +45,7 @@ void shallow2dv_flux(float* __restrict__ fh,
         ghv[i] = hvi*hvi*inv_h + (0.5f*g)*hi*hi;
     }
 }
-
+*/
 __device__
 static
 void shallow2dv_speed(float* __restrict__ cxy,
@@ -67,18 +69,18 @@ void shallow2dv_speed(float* __restrict__ cxy,
     cxy[0] = cx;
     cxy[1] = cy;
 }
-
+/*
 __device__
-void shallow2d_flux(float* FU, float* GU, const float* U,
+extern void shallow2d_flux(float* FU, float* GU, const float* U,
                     int ncell, int field_stride)
 {
-	printf("KERNEL: Flux outer\n");
+	printf("if here then ok\n");
     shallow2dv_flux(FU, FU+field_stride, FU+2*field_stride,
                     GU, GU+field_stride, GU+2*field_stride,
                     U,  U +field_stride, U +2*field_stride,
                     g, ncell);
 }
-
+*/
 __global__
 void shallow2d_speed(float* cxy, const float* U,
                      int ncell, int field_stride)
