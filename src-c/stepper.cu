@@ -22,26 +22,33 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
     int ng = 4;
 
     central2d_t* sim = (central2d_t*) malloc(sizeof(central2d_t));
+//	cudaMallocManaged(&sim, sizeof(central2d_t));
     sim->nx = nx;
     sim->ny = ny;
     sim->ng = ng;
     sim->nfield = nfield;
     sim->dx = w/nx;
+
     sim->dy = h/ny;
+	
     sim->flux = flux;
     sim->speed = speed;
     sim->cfl = cfl;
+
+//	cudaMemcpyFromSymbol(&sim->flux, flux, sizeof(flux_t));
+
+  //      cudaMemcpyFromSymbol(&sim->speed, speed, sizeof(speed_t));
 
     int nx_all = nx + 2*ng;
     int ny_all = ny + 2*ng;
     int nc = nx_all * ny_all;
     int N  = nfield * nc;
 
-    sim->u  = (float*) malloc((4*N + 6*nx_all)* sizeof(float));
-    sim->v  = sim->u +   N;
-    sim->f  = sim->u + 2*N;
-    sim->g  = sim->u + 3*N;
-    sim->scratch = sim->u + 4*N;
+    //sim->u  = (float*) malloc((4*N + 6*nx_all)* sizeof(float));
+    //sim->v  = sim->u +   N;
+    //sim->f  = sim->u + 2*N;
+    //sim->g  = sim->u + 3*N;
+    //sim->scratch = sim->u + 4*N;
 
 //	cudaMallocManaged(&sim, sizeof(central2d_t));
 
@@ -49,16 +56,20 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
 
 
 	cudaMallocManaged(&sim->u, (4*N + 6*nx_all)* sizeof(float));
-	cudaMallocManaged(&sim->v, N*sizeof(float));
-	cudaMallocManaged(&sim->f, N*sizeof(float));
-  	cudaMallocManaged(&sim->g, N*sizeof(float));
-	cudaMallocManaged(&sim->scratch, N*sizeof(float));
+	cudaMallocManaged(&sim->v, sizeof(float));
+	cudaMallocManaged(&sim->f, sizeof(float));
+  	cudaMallocManaged(&sim->g, sizeof(float));
+	cudaMallocManaged(&sim->scratch, sizeof(float));
+	sim->v = sim->u + N;
+	sim->f = sim->u + 2*N;
+	sim->g = sim->u + 3*N;
+	sim->scratch = sim->u + 3*N;
+	cudaDeviceSynchronize();
 
-
-    sim->v  = sim->u +   N;
-    sim->f  = sim->u + 2*N;
-    sim->g  = sim->u + 3*N;
-    sim->scratch = sim->u + 4*N;
+   // sim->v  = sim->u +   N;
+   // sim->f  = sim->u + 2*N;
+   // sim->g  = sim->u + 3*N;
+   // sim->scratch = sim->u + 4*N;
 
 	//cuda_module_init<<<1,1>>>(sim->u,sim->v,sim->f,sim->g,sim->scratch, N);
 	//cudaDeviceSynchronize();
@@ -287,6 +298,7 @@ void limited_derivk(float* __restrict__ du,
 
 // Predictor half-step
 __device__
+//__global__
 static
 void central2d_predict(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -339,6 +351,7 @@ void central2d_correct_sd(float* __restrict__ s,
 
 // Corrector
 __device__
+//__global__
 static
 void central2d_correct(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -389,7 +402,6 @@ void central2d_correct(float* __restrict__ v,
         }
     }
 }
-
 __global__
 static
 void central2d_step(float* __restrict__ u, float* __restrict__ v,
@@ -407,14 +419,14 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
     float dtcdy2 = 0.5 * dt / dy;
 
     flux(f, g, u, nx_all * ny_all, nx_all * ny_all);
-
     central2d_predict(v, scratch, u, f, g, dtcdx2, dtcdy2,
                       nx_all, ny_all, nfield);
-
-    // Flux values of f and g at half step
+		
+ // Flux values of f and g at half step
     for (int iy = 1; iy < ny_all-1; ++iy) {
         int jj = iy*nx_all+1;
         flux(f+jj, g+jj, v+jj, nx_all-2, nx_all * ny_all);
+	
     }
 
     central2d_correct(v+io*(nx_all+1), scratch, u, f, g, dtcdx2, dtcdy2,
@@ -455,22 +467,37 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
     float t = 0;
     
 
-		
+	
+	float *cxy;// = (float*) malloc(2*sizeof(float));; //{1.0e-15f, 1.0e-15f};
+        cudaMallocManaged(&cxy, 2*sizeof(float));	
+	cxy[0] = 1.0e-15f;
+        cxy[1] = 1.0e-15f;
+	cudaDeviceSynchronize();
+	
 
 
     while (!done) {
-        float cxy[2] = {1.0e-15f, 1.0e-15f};
-        central2d_periodic<<<1,1>>>(u, nx, ny, ng, nfield);
+	printf(">>(0)\n");
+        //float *cxy;// = (float*) malloc(2*sizeof(float));; //{1.0e-15f, 1.0e-15f};
+        //cudaMallocManaged(&cxy, 2*sizeof(float));
+	//cudaDeviceSynchronize();
+	printf(">>(0.0)\n");
+	cxy[0] = 1.0e-15f;
+	cxy[1] = 1.0e-15f;
+	printf(">>(0.1)\n");
+	central2d_periodic<<<1,1>>>(u, nx, ny, ng, nfield);
         cudaDeviceSynchronize();
 	printf(">>(1)\n");
 	speed<<<1,1>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
         cudaDeviceSynchronize();
-	printf(">>(2)\n");
+	printf(">>(2): %f, %f\n",cxy[0], cxy[1]);
 	float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
-        if (t + 2*dt >= tfinal) {
+        printf(">>(2a)\n");
+	if (t + 2*dt >= tfinal) {
             dt = (tfinal-t)/2;
             done = true;
         }
+	printf(">>(2b)\n");
         central2d_step<<<1,1>>>(u, v, scratch, f, g,
                        0, nx+4, ny+4, ng-2,
                        nfield, flux, speed,
@@ -486,6 +513,8 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
 	t += 2*dt;
         nstep += 2;
     }
+	
+	cudaFree(cxy);
 	printf("Done with run sequence\n");
     return nstep;
 }

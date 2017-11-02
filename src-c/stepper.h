@@ -18,8 +18,10 @@
  * of the solution and fluxes are separated by `field_stride`.
  *
  */
+//__device__
 typedef void (*flux_t)(float* FU, float* GU, const float* U,
                        int ncell, int field_stride);
+//__device__
 typedef void (*speed_t)(float* cxy, const float* U,
                         int ncell, int field_stride);
 
