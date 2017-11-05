@@ -78,7 +78,11 @@ void central2d_free(central2d_t* sim);
  * real (non-ghost) cell.
  *
  */
+
 int  central2d_offset(central2d_t* sim, int k, int ix, int iy);
+
+__device__
+int central2d_offset_dev(int nx, int ny, int ng, int k, int ix, int iy);
 
 /**
  * ### Running the simulation

@@ -32,24 +32,31 @@
  * information about these conserved quantities (and about the range
  * of water heights).
  */
-
-void solution_check(central2d_t* sim)
+__global__
+void solution_check(int nx, int ny, float* __restrict__ u, float dx, float dy, int ng)
 {
-    int nx = sim->nx, ny = sim->ny;
-    float* u = sim->u;
+    //int nx = sim->nx, ny = sim->ny;
+    //float* u = sim->u;
     float h_sum = 0, hu_sum = 0, hv_sum = 0;
-    float hmin = u[central2d_offset(sim,0,0,0)];
+    printf("sc1\n");
+    float hmin = u[central2d_offset_dev(nx,ny,ng,0,0,0)];
     float hmax = hmin;
+	printf("sc2\n");
+	int indexY = blockIdx.y * blockDim.y + threadIdx.y;
+        int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+	int cudaStrideY = blockDim.y * gridDim.y;
+	int cudaStrideX = blockDim.x * gridDim.x;
+	printf("sc3\n");
     for (int j = 0; j < ny; ++j)
         for (int i = 0; i < nx; ++i) {
-            float h = u[central2d_offset(sim,0,i,j)];
+            float h = u[central2d_offset_dev(nx,ny,ng,0,i,j)];
             h_sum += h;
-            hu_sum += u[central2d_offset(sim,1,i,j)];
-            hv_sum += u[central2d_offset(sim,2,i,j)];
+            hu_sum += u[central2d_offset_dev(nx,ny,ng,1,i,j)];
+            hv_sum += u[central2d_offset_dev(nx,ny,ng,2,i,j)];
             hmax = fmaxf(h, hmax);
             hmin = fminf(h, hmin);
         }
-    float cell_area = sim->dx * sim->dy;
+    float cell_area = dx * dy;
     h_sum *= cell_area;
     hu_sum *= cell_area;
     hv_sum *= cell_area;
@@ -217,7 +224,10 @@ int run_sim(lua_State* L)
     lua_init_sim(L,sim);
     printf("%g %g %d %d %g %d %g\n", w, h, nx, ny, cfl, frames, ftime);
     FILE* viz = viz_open(fname, sim);
-    solution_check(sim);
+    printf("1st check");
+    solution_check<<<1,1>>>(sim->nx, sim->ny, sim->u, sim->dx, sim->dy, sim->ng);
+    cudaDeviceSynchronize();
+    printf("1st check done");
     viz_frame(viz, sim);
 
     double tcompute = 0;
@@ -237,8 +247,9 @@ int run_sim(lua_State* L)
         int nstep = central2d_run(sim, ftime);
         double elapsed = 0;
 #endif
-        solution_check(sim);
-        tcompute += elapsed;
+        solution_check<<<1,1>>>(sim->nx, sim->ny, sim->u, sim->dx, sim->dy, sim->ng);
+        cudaDeviceSynchronize();
+	tcompute += elapsed;
         printf("  Time: %e (%e for %d steps)\n", elapsed, elapsed/nstep, nstep);
         viz_frame(viz, sim);
     }

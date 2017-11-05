@@ -64,7 +64,6 @@ void central2d_free(central2d_t* sim)
     free(sim);
 }
 
-
 int central2d_offset(central2d_t* sim, int k, int ix, int iy)
 {
     int nx = sim->nx, ny = sim->ny, ng = sim->ng;
@@ -73,6 +72,13 @@ int central2d_offset(central2d_t* sim, int k, int ix, int iy)
     return (k*ny_all+(ng+iy))*nx_all+(ng+ix);
 }
 
+__device__
+int central2d_offset_dev(int nx, int ny, int ng, int k, int ix, int iy)
+{
+    int nx_all = nx + 2*ng;
+    int ny_all = ny + 2*ng;
+    return (k*ny_all+(ng+iy))*nx_all+(ng+ix);
+}
 
 /**
  * ### Boundary conditions
