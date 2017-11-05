@@ -56,10 +56,10 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
 void central2d_free(central2d_t* sim)
 {
 	cudaFree(sim->u);
-	cudaFree(sim->v);
-	cudaFree(sim->f);
-	cudaFree(sim->g);
-	cudaFree(sim->scratch); 
+//	cudaFree(sim->v);
+//	cudaFree(sim->f);
+//	cudaFree(sim->g);
+//	cudaFree(sim->scratch); 
    //free(sim->u);
     free(sim);
 }

@@ -17,7 +17,7 @@
 
 static const float g = 9.8;
 
-__global__ __host__ __device__
+//__global__ __host__ __device__
 static
 void shallow2dv_flux(float* __restrict__ fh,
                      float* __restrict__ fhu,
@@ -71,7 +71,7 @@ void shallow2dv_speed(float* __restrict__ cxy,
     cxy[1] = cy;
 }
 
-__global__ __host__ __device__
+//__global__ __host__ __device__
 void shallow2d_flux(float* FU, float* GU, const float* U,
                     int ncell, int field_stride)
 {
