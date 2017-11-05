@@ -89,22 +89,30 @@ int central2d_offset(central2d_t* sim, int k, int ix, int iy)
  * integers `p` and `q`.
  */
 
-//__device__
+__device__
 static inline
 void copy_subgrid(float* __restrict__ dst,
                   const float* __restrict__ src,
                   int nx, int ny, int stride)
 {
 
-	int index = blockIdx.x * blockDim.x + threadIdx.x;
-        int cudaStride = blockDim.x * gridDim.x;
-	for (int iy = 0; iy < ny; iy += 1)
-   // for (int iy = index; iy < ny; iy += cudaStride)
-        for (int ix = 0; ix < nx; ++ix)
-            dst[iy*stride+ix] = src[iy*stride+ix];
+	int indexY = blockIdx.y * blockDim.y + threadIdx.y;
+        int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+	int cudaStrideY = blockDim.y * gridDim.y;
+	int cudaStrideX = blockDim.x * gridDim.x;
+	//for (int iy = 0; iy < ny; iy += 1)
+		
+	for(int iy = indexY; iy < ny; iy += cudaStrideY)
+	{   
+// for (int iy = index; iy < ny; iy += cudaStride)
+        	for (int ix = indexX; ix < nx; ix += cudaStrideX)
+		{
+            		dst[iy*stride+ix] = src[iy*stride+ix];
+		}
+	}
 }
 
-//__global__
+__global__
 void central2d_periodic(float* __restrict__ u,
                         int nx, int ny, int ng, int nfield)
 {
@@ -122,7 +130,8 @@ void central2d_periodic(float* __restrict__ u,
   	int cudaStride = blockDim.x * gridDim.x;
 
     // Copy data into ghost cells on each side
-    for (int k = 0; k < nfield; k += 1) {
+    for (int k = 0; k < nfield; k += 1) 
+    {
 	//for (int k = index; k < nfield; k += cudaStride) {
         float* uk = u + k*field_stride;
         copy_subgrid(uk+lg, uk+l, ng, ny+2*ng, s);
@@ -400,13 +409,17 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
 	cudaMallocManaged(&cxy, 2*sizeof(float));
 	cudaDeviceSynchronize();
 
+	dim3 threadsPerBlock(32,32);
+	dim3 numBlocks(nx_all / threadsPerBlock.x, ny_all / threadsPerBlock.y);
+
+
     while (!done) {
         //float cxy[2] = {1.0e-15f, 1.0e-15f};
         cxy[0] = 1.0e-15f;
 	cxy[1] = 1.0e-15f;
-	central2d_periodic(u, nx, ny, ng, nfield);
+	central2d_periodic<<<numBlocks,threadsPerBlock>>>(u, nx, ny, ng, nfield);
         cudaDeviceSynchronize();
-	speed<<<1,NUM_THREADS>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
+	speed<<<numBlocks,threadsPerBlock>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
         cudaDeviceSynchronize();
 	float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
         if (t + 2*dt >= tfinal) {
