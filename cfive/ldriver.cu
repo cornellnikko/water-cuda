@@ -38,17 +38,14 @@ void solution_check(int nx, int ny, float* __restrict__ u, float dx, float dy, i
     //int nx = sim->nx, ny = sim->ny;
     //float* u = sim->u;
     float h_sum = 0, hu_sum = 0, hv_sum = 0;
-    printf("sc1\n");
     float hmin = u[central2d_offset_dev(nx,ny,ng,0,0,0)];
     float hmax = hmin;
-	printf("sc2\n");
 	int indexY = blockIdx.y * blockDim.y + threadIdx.y;
         int indexX = blockIdx.x * blockDim.x + threadIdx.x;
 	int cudaStrideY = blockDim.y * gridDim.y;
 	int cudaStrideX = blockDim.x * gridDim.x;
-	printf("sc3\n");
-    for (int j = 0; j < ny; ++j)
-        for (int i = 0; i < nx; ++i) {
+    for (int j = indexY; j < ny; j += cudaStrideY)
+        for (int i = indexX; i < nx; i += cudaStrideX) {
             float h = u[central2d_offset_dev(nx,ny,ng,0,i,j)];
             h_sum += h;
             hu_sum += u[central2d_offset_dev(nx,ny,ng,1,i,j)];
@@ -60,6 +57,8 @@ void solution_check(int nx, int ny, float* __restrict__ u, float dx, float dy, i
     h_sum *= cell_area;
     hu_sum *= cell_area;
     hv_sum *= cell_area;
+   
+    if(blockIdx.x == 0 && threadIdx.x == 0 && blockIdx.y == 0 && threadIdx.y == 0)
     printf("-\n  Volume: %g\n  Momentum: (%g, %g)\n  Range: [%g, %g]\n",
            h_sum, hu_sum, hv_sum, hmin, hmax);
     assert(hmin > 0);
@@ -224,11 +223,17 @@ int run_sim(lua_State* L)
     lua_init_sim(L,sim);
     printf("%g %g %d %d %g %d %g\n", w, h, nx, ny, cfl, frames, ftime);
     FILE* viz = viz_open(fname, sim);
-    printf("1st check");
-    solution_check<<<1,1>>>(sim->nx, sim->ny, sim->u, sim->dx, sim->dy, sim->ng);
+
+	int nx_all = nx + 2*sim->ng;
+        int ny_all = ny + 2*sim->ng;
+        dim3 threadsPerBlock(32,32);
+        dim3 numBlocks(nx_all / threadsPerBlock.x, ny_all / threadsPerBlock.y);
+
+ //   solution_check<<<1,512>>>(sim->nx, sim->ny, sim->u, sim->dx, sim->dy, sim->ng);
+	 solution_check<<<numBlocks,threadsPerBlock>>>(sim->nx, sim->ny, sim->u, sim->dx, sim->dy, sim->ng);
     cudaDeviceSynchronize();
-    printf("1st check done");
     viz_frame(viz, sim);
+
 
     double tcompute = 0;
     for (int i = 0; i < frames; ++i) {
@@ -247,7 +252,7 @@ int run_sim(lua_State* L)
         int nstep = central2d_run(sim, ftime);
         double elapsed = 0;
 #endif
-        solution_check<<<1,1>>>(sim->nx, sim->ny, sim->u, sim->dx, sim->dy, sim->ng);
+        solution_check<<<numBlocks,threadsPerBlock>>>(sim->nx, sim->ny, sim->u, sim->dx, sim->dy, sim->ng);
         cudaDeviceSynchronize();
 	tcompute += elapsed;
         printf("  Time: %e (%e for %d steps)\n", elapsed, elapsed/nstep, nstep);

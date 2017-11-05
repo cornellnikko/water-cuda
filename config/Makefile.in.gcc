@@ -8,11 +8,12 @@ CXXFLAGS=-std=c++14 -g
 
 # CUDA compiler and flags
 NVCC=nvcc
-NVCCFLAGS=-O3 -std=c++11 -G -g -rdc=true -lcudadevrt
+NVCCFLAGS=-O3 -std=c++11 -G -g -rdc=true -lcudadevrt -Xcompiler -fopenmp
+# -D_OPENMP
 #NVCCFLAGS=-O3 -std=c99
 
 # Optimization flags
-OPTFLAGS=-O3 -march=native -fopenmp -ffast-math
+OPTFLAGS=-O3 -march=native -Xcompiler -fopenmp -fgomp -ffast-math
 CFLAGS+=$(OPTFLAGS)
 CXXFLAGS+=$(OPTFLAGS)
 

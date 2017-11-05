@@ -132,9 +132,6 @@ void central2d_periodic(float* __restrict__ u,
     int b = ny*s, bg = 0;
     int t = ng*s, tg = (nx+ng)*s;
 
-	int index = blockIdx.x * blockDim.x + threadIdx.x;
-  	int cudaStride = blockDim.x * gridDim.x;
-
     // Copy data into ghost cells on each side
     for (int k = 0; k < nfield; k += 1) 
     {

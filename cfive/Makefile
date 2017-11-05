@@ -11,7 +11,7 @@ ldriver.o: ldriver.cu shallow2d.h
 	$(NVCC) $(NVCCFLAGS) $(LUA_CFLAGS) -c $<
 
 shallow2d.o: shallow2d.cu
-	$(NVCC) $(NVCFLAGS) -c $<
+	$(NVCC) $(NVCCFLAGS) -c $<
 
 stepper.o: stepper.cu shallow2d.h
 	$(NVCC) $(NVCCFLAGS) -c $<
