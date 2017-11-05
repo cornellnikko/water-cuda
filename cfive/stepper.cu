@@ -42,6 +42,7 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
     int N  = nfield * nc;
     	
 	cudaMallocManaged(&sim->u, (4*N + 6*nx_all)* sizeof(float));
+	cudaMallocManaged(&sim->cxy, 2*sizeof(float));
 	cudaDeviceSynchronize();
 //	sim->u  = (float*) malloc((4*N + 6*nx_all)* sizeof(float));
     sim->v  = sim->u +   N;
@@ -56,11 +57,7 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
 void central2d_free(central2d_t* sim)
 {
 	cudaFree(sim->u);
-//	cudaFree(sim->v);
-//	cudaFree(sim->f);
-//	cudaFree(sim->g);
-//	cudaFree(sim->scratch); 
-   //free(sim->u);
+	cudaFree(sim->cxy);
     free(sim);
 }
 
@@ -399,7 +396,7 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
                    float* __restrict__ g,
                    int nx, int ny, int ng,
                    int nfield, flux_t flux, speed_t speed,
-                   float tfinal, float dx, float dy, float cfl)
+                   float tfinal, float dx, float dy, float cfl, float* cxy)
 {
     int nstep = 0;
     int nx_all = nx + 2*ng;
@@ -407,11 +404,11 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
     bool done = false;
     float t = 0;
 
-
+	/*
 	float *cxy;
 	cudaMallocManaged(&cxy, 2*sizeof(float));
 	cudaDeviceSynchronize();
-
+*/
 	dim3 threadsPerBlock(32,32);
 	dim3 numBlocks(nx_all / threadsPerBlock.x, ny_all / threadsPerBlock.y);
 
@@ -441,7 +438,7 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
         nstep += 2;
     }
 
-	cudaFree(cxy);
+//	cudaFree(cxy);
 
     return nstep;
 }
@@ -453,5 +450,5 @@ int central2d_run(central2d_t* sim, float tfinal)
                           sim->f, sim->g,
                           sim->nx, sim->ny, sim->ng,
                           sim->nfield, sim->flux, sim->speed,
-                          tfinal, sim->dx, sim->dy, sim->cfl);
+                          tfinal, sim->dx, sim->dy, sim->cfl, sim->cxy);
 }

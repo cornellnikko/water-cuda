@@ -36,7 +36,7 @@ void shallow2dv_flux(float* __restrict__ fh,
     for (int i = 0; i < ncell; ++i) {
         float hi = h[i], hui = hu[i], hvi = hv[i];
         float inv_h = 1/hi;
-        fhu[i] = hui*hui*inv_h + (0.5f*g)*hi*hi;
+	fhu[i] = hui*hui*inv_h + (0.5f*g)*hi*hi;
         fhv[i] = hui*hvi*inv_h;
         ghu[i] = hui*hvi*inv_h;
         ghv[i] = hvi*hvi*inv_h + (0.5f*g)*hi*hi;
@@ -55,10 +55,10 @@ void shallow2dv_speed(float* __restrict__ cxy,
     float cx = cxy[0];
     float cy = cxy[1];
     
-	int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int stride = blockDim.x * gridDim.x;
+	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+	int cudaStrideX = blockDim.x * gridDim.x;
 
-    for (int i = index; i < ncell; i += stride) {
+    for (int i = indexX; i < ncell; i += cudaStrideX) {
         float hi = h[i];
         float inv_hi = 1.0f/h[i];
         float root_gh = sqrtf(g * hi);

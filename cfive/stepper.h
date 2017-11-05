@@ -49,6 +49,8 @@ typedef struct central2d_t {
     flux_t flux;
     speed_t speed;
 
+	float* cxy;
+
     // Storage
     float* u;
     float* v;
