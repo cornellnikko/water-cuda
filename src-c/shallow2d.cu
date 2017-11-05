@@ -1,6 +1,6 @@
 #include <string.h>
 #include <math.h>
-#include <stdio.h>
+
 //ldoc on
 /**
  * ## Implementation
@@ -17,7 +17,7 @@
 
 static const float g = 9.8;
 
-__device__
+//__device__
 static
 void shallow2dv_flux(float* __restrict__ fh,
                      float* __restrict__ fhu,
@@ -31,13 +31,14 @@ void shallow2dv_flux(float* __restrict__ fh,
                      float g,
                      int ncell)
 {
-	printf("KERNEL: Flux inner\n");
-    memcpy(fh, hu, ncell * sizeof(float));
-    memcpy(gh, hv, ncell * sizeof(float));
-    for (int i = 0; i < ncell; ++i) {
+    		memcpy(fh, hu, ncell * sizeof(float));
+    		memcpy(gh, hv, ncell * sizeof(float));
+
+
+    for (int i = 0; i < ncell; i += 1) {
         float hi = h[i], hui = hu[i], hvi = hv[i];
         float inv_h = 1/hi;
-        fhu[i] = hui*hui*inv_h + (0.5f*g)*hi*hi;
+	fhu[i] = hui*hui*inv_h + (0.5f*g)*hi*hi;
         fhv[i] = hui*hvi*inv_h;
         ghu[i] = hui*hvi*inv_h;
         ghv[i] = hvi*hvi*inv_h + (0.5f*g)*hi*hi;
@@ -55,9 +56,13 @@ void shallow2dv_speed(float* __restrict__ cxy,
 {
     float cx = cxy[0];
     float cy = cxy[1];
-    for (int i = 0; i < ncell; ++i) {
+    
+	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+	int cudaStrideX = blockDim.x * gridDim.x;
+
+    for (int i = indexX; i < ncell; i += cudaStrideX) {
         float hi = h[i];
-        float inv_hi = 1.0f/h[i];
+        float inv_hi = 1.0f/hi;
         float root_gh = sqrtf(g * hi);
         float cxi = fabsf(hu[i] * inv_hi) + root_gh;
         float cyi = fabsf(hv[i] * inv_hi) + root_gh;
@@ -68,11 +73,10 @@ void shallow2dv_speed(float* __restrict__ cxy,
     cxy[1] = cy;
 }
 
-__device__
+//__global__
 void shallow2d_flux(float* FU, float* GU, const float* U,
                     int ncell, int field_stride)
 {
-	printf("KERNEL: Flux outer\n");
     shallow2dv_flux(FU, FU+field_stride, FU+2*field_stride,
                     GU, GU+field_stride, GU+2*field_stride,
                     U,  U +field_stride, U +2*field_stride,
@@ -80,7 +84,7 @@ void shallow2d_flux(float* FU, float* GU, const float* U,
 }
 
 __global__
-void shallow2d_speed(float* cxy, const float* U,
+void shallow2d_speed(float* __restrict__  cxy, const float* __restrict__ U,
                      int ncell, int field_stride)
 {
     shallow2dv_speed(cxy, U, U+field_stride, U+2*field_stride, g, ncell);
