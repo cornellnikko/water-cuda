@@ -1,10 +1,12 @@
 #include "stepper.h"
-
+#include "shallow2d.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <stdio.h>
+
 
 #ifndef NUM_THREADS
 #define NUM_THREADS 512
@@ -170,7 +172,6 @@ float xmin2s(float s, float a, float b) {
     return (sa+sb) * min_abs;
 }
 
-
 // Limited combined slope estimate
 static inline
 float limdiff(float um, float u0, float up) {
@@ -181,7 +182,6 @@ float limdiff(float um, float u0, float up) {
     float duc = up-um;   // Twice centered difference
     return xmin2s( quarter, xmin2s(theta, du1, du2), duc );
 }
-
 
 // Compute limited derivs
 static inline
@@ -240,6 +240,7 @@ void limited_derivk(float* __restrict__ du,
 
 
 // Predictor half-step
+
 static
 void central2d_predict(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -251,12 +252,13 @@ void central2d_predict(float* __restrict__ v,
 {
     float* __restrict__ fx = scratch;
     float* __restrict__ gy = scratch+nx;
-    for (int k = 0; k < nfield; ++k) {
-        for (int iy = 1; iy < ny-1; ++iy) {
+
+    for (int k = 0; k < nfield; k += 1) {
+        for (int iy = 1; iy < ny-1; iy += 1) {
             int offset = (k*ny+iy)*nx+1;
             limited_deriv1(fx+1, f+offset, nx-2);
             limited_derivk(gy+1, g+offset, nx-2, nx);
-            for (int ix = 1; ix < nx-1; ++ix) {
+            for (int ix = 1; ix < nx-1; ix += 1) {
                 int offset = (k*ny+iy)*nx+ix;
                 v[offset] = u[offset] - dtcdx2 * fx[ix] - dtcdy2 * gy[ix];
             }
@@ -357,8 +359,12 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
     float dtcdx2 = 0.5 * dt / dx;
     float dtcdy2 = 0.5 * dt / dy;
 
-    flux(f, g, u, nx_all * ny_all, nx_all * ny_all);
 
+	dim3 threadsPerBlock(32,32);
+        dim3 numBlocks(nx_all / threadsPerBlock.x, ny_all / threadsPerBlock.y);
+
+    flux(f, g, u, nx_all * ny_all, nx_all * ny_all);
+    
     central2d_predict(v, scratch, u, f, g, dtcdx2, dtcdy2,
                       nx_all, ny_all, nfield);
 
