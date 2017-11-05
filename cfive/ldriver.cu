@@ -38,18 +38,22 @@ void solution_check(int nx, int ny, float* __restrict__ u, float dx, float dy, i
     //int nx = sim->nx, ny = sim->ny;
     //float* u = sim->u;
     float h_sum = 0, hu_sum = 0, hv_sum = 0;
-    float hmin = u[central2d_offset_dev(nx,ny,ng,0,0,0)];
+    int nx_all = nx + 2*ng;
+    int ny_all = ny + 2*ng;
+
+    float hmin = u[central2d_offset_dev(nx_all,ny_all,ng,0,0,0)];
     float hmax = hmin;
+
 	int indexY = blockIdx.y * blockDim.y + threadIdx.y;
         int indexX = blockIdx.x * blockDim.x + threadIdx.x;
 	int cudaStrideY = blockDim.y * gridDim.y;
 	int cudaStrideX = blockDim.x * gridDim.x;
     for (int j = indexY; j < ny; j += cudaStrideY)
         for (int i = indexX; i < nx; i += cudaStrideX) {
-            float h = u[central2d_offset_dev(nx,ny,ng,0,i,j)];
+            float h = u[central2d_offset_dev(nx_all,ny_all,ng,0,i,j)];
             h_sum += h;
-            hu_sum += u[central2d_offset_dev(nx,ny,ng,1,i,j)];
-            hv_sum += u[central2d_offset_dev(nx,ny,ng,2,i,j)];
+            hu_sum += u[central2d_offset_dev(nx_all,ny_all,ng,1,i,j)];
+            hv_sum += u[central2d_offset_dev(nx_all,ny_all,ng,2,i,j)];
             hmax = fmaxf(h, hmax);
             hmin = fminf(h, hmin);
         }

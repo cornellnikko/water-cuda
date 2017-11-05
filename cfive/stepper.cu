@@ -45,7 +45,7 @@ central2d_t* central2d_init(float w, float h, int nx, int ny,
     	
 	cudaMallocManaged(&sim->u, (4*N + 6*nx_all)* sizeof(float));
 	cudaMallocManaged(&sim->cxy, 2*sizeof(float));
-	cudaDeviceSynchronize();
+//	cudaDeviceSynchronize();
 //	sim->u  = (float*) malloc((4*N + 6*nx_all)* sizeof(float));
     sim->v  = sim->u +   N;
     sim->f  = sim->u + 2*N;
@@ -72,10 +72,8 @@ int central2d_offset(central2d_t* sim, int k, int ix, int iy)
 }
 
 __device__
-int central2d_offset_dev(int nx, int ny, int ng, int k, int ix, int iy)
+int central2d_offset_dev(int nx_all, int ny_all, int ng, int k, int ix, int iy)
 {
-    int nx_all = nx + 2*ng;
-    int ny_all = ny + 2*ng;
     return (k*ny_all+(ng+iy))*nx_all+(ng+ix);
 }
 

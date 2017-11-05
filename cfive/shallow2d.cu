@@ -62,7 +62,7 @@ void shallow2dv_speed(float* __restrict__ cxy,
 
     for (int i = indexX; i < ncell; i += cudaStrideX) {
         float hi = h[i];
-        float inv_hi = 1.0f/h[i];
+        float inv_hi = 1.0f/hi;
         float root_gh = sqrtf(g * hi);
         float cxi = fabsf(hu[i] * inv_hi) + root_gh;
         float cyi = fabsf(hv[i] * inv_hi) + root_gh;
@@ -84,7 +84,7 @@ void shallow2d_flux(float* FU, float* GU, const float* U,
 }
 
 __global__
-void shallow2d_speed(float* cxy, const float* U,
+void shallow2d_speed(float* __restrict__  cxy, const float* __restrict__ U,
                      int ncell, int field_stride)
 {
     shallow2dv_speed(cxy, U, U+field_stride, U+2*field_stride, g, ncell);
