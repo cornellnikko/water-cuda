@@ -195,7 +195,7 @@ void limited_deriv1(float* __restrict__ du,
 #ifdef __CUDA_ARCH__
 	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
         int cudaStrideX = blockDim.x * gridDim.x;
-	for (int i = indexX; i < ncell; ++cudaStrideX) 
+	for (int i = indexX; i < ncell; i+=cudaStrideX) 
 	{
 	        du[i] = limdiff(u[i-1], u[i], u[i+1]);
 	}
@@ -221,7 +221,7 @@ void limited_derivk(float* __restrict__ du,
 #ifdef __CUDA_ARCH__
 	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
         int cudaStrideX = blockDim.x * gridDim.x;
-	for (int i = indexX; i < ncell; ++cudaStrideX) 
+	for (int i = indexX; i < ncell; i += cudaStrideX) 
 	{
         	du[i] = limdiff(u[i-stride], u[i], u[i+stride]);
 	}
@@ -269,7 +269,7 @@ void limited_derivk(float* __restrict__ du,
 
 
 // Predictor half-step
-//__global__
+__global__
 static
 void central2d_predict(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -398,7 +398,7 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
     shallow2d_flux<<<1,1024>>>(f, g, u, nx_all * ny_all, nx_all * ny_all);
     cudaDeviceSynchronize();
     //printf("B\n");
-	central2d_predict(v, scratch, u, f, g, dtcdx2, dtcdy2,
+	central2d_predict<<<1,1024>>>(v, scratch, u, f, g, dtcdx2, dtcdy2,
                       nx_all, ny_all, nfield);
     cudaDeviceSynchronize();
 	//printf("C\n");
