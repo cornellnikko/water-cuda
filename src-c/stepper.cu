@@ -191,14 +191,20 @@ void limited_deriv1(float* __restrict__ du,
                     const float* __restrict__ u,
                     int ncell)
 {
+
 #ifdef __CUDA_ARCH__
 	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
         int cudaStrideX = blockDim.x * gridDim.x;
-	for (int i = indexX; i < ncell; ++cudaStrideX)
-        du[i] = limdiff(u[i-1], u[i], u[i+1]);
+	for (int i = indexX; i < ncell; ++cudaStrideX) 
+	{
+	        du[i] = limdiff(u[i-1], u[i], u[i+1]);
+	}
 #else
-    for (int i = 0; i < ncell; ++i)
-        du[i] = limdiff(u[i-1], u[i], u[i+1]);
+
+    	for (int i = 0; i < ncell; ++i) 
+	{
+        	du[i] = limdiff(u[i-1], u[i], u[i+1]);
+	}
 #endif
 }
 
@@ -211,14 +217,20 @@ void limited_derivk(float* __restrict__ du,
                     int ncell, int stride)
 {
     assert(stride > 0);
+
 #ifdef __CUDA_ARCH__
 	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
         int cudaStrideX = blockDim.x * gridDim.x;
-	for (int i = indexX; i < ncell; ++cudaStrideX)
+	for (int i = indexX; i < ncell; ++cudaStrideX) 
+	{
         	du[i] = limdiff(u[i-stride], u[i], u[i+stride]);
+	}
 #else
-    for (int i = 0; i < ncell; ++i)
-        du[i] = limdiff(u[i-stride], u[i], u[i+stride]);
+
+    	for (int i = 0; i < ncell; ++i)
+	{
+        	du[i] = limdiff(u[i-stride], u[i], u[i+stride]);
+	}
 #endif
 }
 
@@ -284,7 +296,8 @@ void central2d_predict(float* __restrict__ v,
 }
 
 
-// Corrector
+// Correictor
+//__device__
 static
 void central2d_correct_sd(float* __restrict__ s,
                           float* __restrict__ d,
@@ -309,6 +322,7 @@ void central2d_correct_sd(float* __restrict__ s,
 
 
 // Corrector
+//__global__
 static
 void central2d_correct(float* __restrict__ v,
                        float* __restrict__ scratch,
