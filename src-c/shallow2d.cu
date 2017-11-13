@@ -17,7 +17,7 @@
 
 static const float g = 9.8;
 
-//__device__
+__device__
 static
 void shallow2dv_flux(float* __restrict__ fh,
                      float* __restrict__ fhu,
@@ -31,11 +31,17 @@ void shallow2dv_flux(float* __restrict__ fh,
                      float g,
                      int ncell)
 {
+/*
     		memcpy(fh, hu, ncell * sizeof(float));
     		memcpy(gh, hv, ncell * sizeof(float));
+*/
 
+	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+        int cudaStrideX = blockDim.x * gridDim.x;
 
-    for (int i = 0; i < ncell; i += 1) {
+    for (int i = indexX; i < ncell; i += cudaStrideX) {
+   	fh[i] = hu[i];
+	gh[i] = hv[i];
         float hi = h[i], hui = hu[i], hvi = hv[i];
         float inv_h = 1/hi;
 	fhu[i] = hui*hui*inv_h + (0.5f*g)*hi*hi;
@@ -73,7 +79,7 @@ void shallow2dv_speed(float* __restrict__ cxy,
     cxy[1] = cy;
 }
 
-//__global__
+__global__
 void shallow2d_flux(float* FU, float* GU, const float* U,
                     int ncell, int field_stride)
 {

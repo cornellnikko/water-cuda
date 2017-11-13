@@ -98,17 +98,18 @@ void copy_subgrid(float* __restrict__ dst,
                   const float* __restrict__ src,
                   int nx, int ny, int stride)
 {
-
+/*
 	int indexY = blockIdx.y * blockDim.y + threadIdx.y;
         int indexX = blockIdx.x * blockDim.x + threadIdx.x;
 	int cudaStrideY = blockDim.y * gridDim.y;
 	int cudaStrideX = blockDim.x * gridDim.x;
-	//for (int iy = 0; iy < ny; iy += 1)
+*/
+	for (int iy = 0; iy < ny; iy += 1)
 		
-	for(int iy = indexY; iy < ny; iy += cudaStrideY)
+//	for(int iy = indexY; iy < ny; iy += cudaStrideY)
 	{   
-// for (int iy = index; iy < ny; iy += cudaStride)
-        	for (int ix = indexX; ix < nx; ix += cudaStrideX)
+ //for (int ix = indexX; iy < nx; ix += cudaStrideX)
+        	for (int ix = 0; ix < nx; ix += 1)
 		{
             		dst[iy*stride+ix] = src[iy*stride+ix];
 		}
@@ -160,6 +161,7 @@ void central2d_periodic(float* __restrict__ u,
 
 
 // Branch-free computation of minmod of two numbers times 2s
+__host__ __device__
 static inline
 float xmin2s(float s, float a, float b) {
     float sa = copysignf(s, a);
@@ -171,6 +173,7 @@ float xmin2s(float s, float a, float b) {
 }
 
 // Limited combined slope estimate
+__host__ __device__
 static inline
 float limdiff(float um, float u0, float up) {
     const float theta = 2.0;
@@ -182,25 +185,41 @@ float limdiff(float um, float u0, float up) {
 }
 
 // Compute limited derivs
+__host__ __device__
 static inline
 void limited_deriv1(float* __restrict__ du,
                     const float* __restrict__ u,
                     int ncell)
 {
+#ifdef __CUDA_ARCH__
+	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+        int cudaStrideX = blockDim.x * gridDim.x;
+	for (int i = indexX; i < ncell; ++cudaStrideX)
+        du[i] = limdiff(u[i-1], u[i], u[i+1]);
+#else
     for (int i = 0; i < ncell; ++i)
         du[i] = limdiff(u[i-1], u[i], u[i+1]);
+#endif
 }
 
 
 // Compute limited derivs across stride
+__host__ __device__
 static inline
 void limited_derivk(float* __restrict__ du,
                     const float* __restrict__ u,
                     int ncell, int stride)
 {
     assert(stride > 0);
+#ifdef __CUDA_ARCH__
+	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+        int cudaStrideX = blockDim.x * gridDim.x;
+	for (int i = indexX; i < ncell; ++cudaStrideX)
+        	du[i] = limdiff(u[i-stride], u[i], u[i+stride]);
+#else
     for (int i = 0; i < ncell; ++i)
         du[i] = limdiff(u[i-stride], u[i], u[i+stride]);
+#endif
 }
 
 
@@ -238,7 +257,7 @@ void limited_derivk(float* __restrict__ du,
 
 
 // Predictor half-step
-
+//__global__
 static
 void central2d_predict(float* __restrict__ v,
                        float* __restrict__ scratch,
@@ -361,17 +380,23 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
 	dim3 threadsPerBlock(32,32);
         dim3 numBlocks(nx_all / threadsPerBlock.x, ny_all / threadsPerBlock.y);
 
-    flux(f, g, u, nx_all * ny_all, nx_all * ny_all);
-    
-    central2d_predict(v, scratch, u, f, g, dtcdx2, dtcdy2,
+//	printf("A\n");
+    shallow2d_flux<<<1,1>>>(f, g, u, nx_all * ny_all, nx_all * ny_all);
+    cudaDeviceSynchronize();
+    //printf("B\n");
+	central2d_predict(v, scratch, u, f, g, dtcdx2, dtcdy2,
                       nx_all, ny_all, nfield);
-
+    cudaDeviceSynchronize();
+	//printf("C\n");
     // Flux values of f and g at half step
     for (int iy = 1; iy < ny_all-1; ++iy) {
         int jj = iy*nx_all+1;
-        flux(f+jj, g+jj, v+jj, nx_all-2, nx_all * ny_all);
+        shallow2d_flux<<<1,1>>>(f+jj, g+jj, v+jj, nx_all-2, nx_all * ny_all);
+	cudaDeviceSynchronize();
     }
 
+	cudaDeviceSynchronize();
+	//printf("C\n");
     central2d_correct(v+io*(nx_all+1), scratch, u, f, g, dtcdx2, dtcdy2,
                       ng-io, nx+ng-io,
                       ng-io, ny+ng-io,
