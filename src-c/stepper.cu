@@ -98,12 +98,12 @@ void copy_subgrid(float* __restrict__ dst,
                   const float* __restrict__ src,
                   int nx, int ny, int stride)
 {
-/*
-	int indexY = blockIdx.y * blockDim.y + threadIdx.y;
+
+//	int indexY = blockIdx.y * blockDim.y + threadIdx.y;
         int indexX = blockIdx.x * blockDim.x + threadIdx.x;
-	int cudaStrideY = blockDim.y * gridDim.y;
+//	int cudaStrideY = blockDim.y * gridDim.y;
 	int cudaStrideX = blockDim.x * gridDim.x;
-*/
+
 	for (int iy = 0; iy < ny; iy += 1)
 		
 //	for(int iy = indexY; iy < ny; iy += cudaStrideY)
@@ -381,7 +381,7 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
         dim3 numBlocks(nx_all / threadsPerBlock.x, ny_all / threadsPerBlock.y);
 
 //	printf("A\n");
-    shallow2d_flux<<<1,1>>>(f, g, u, nx_all * ny_all, nx_all * ny_all);
+    shallow2d_flux<<<1,1024>>>(f, g, u, nx_all * ny_all, nx_all * ny_all);
     cudaDeviceSynchronize();
     //printf("B\n");
 	central2d_predict(v, scratch, u, f, g, dtcdx2, dtcdy2,
@@ -391,7 +391,7 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
     // Flux values of f and g at half step
     for (int iy = 1; iy < ny_all-1; ++iy) {
         int jj = iy*nx_all+1;
-        shallow2d_flux<<<1,1>>>(f+jj, g+jj, v+jj, nx_all-2, nx_all * ny_all);
+        shallow2d_flux<<<1,1024>>>(f+jj, g+jj, v+jj, nx_all-2, nx_all * ny_all);
 	cudaDeviceSynchronize();
     }
 
