@@ -279,8 +279,11 @@ void central2d_predict(float* __restrict__ v,
                        float dtcdx2, float dtcdy2,
                        int nx, int ny, int nfield)
 {
+//	float*  localScratch = (float*) malloc(2*nx*nx* sizeof(float));
+
     float* __restrict__ fx = scratch;
     float* __restrict__ gy = scratch+nx;
+
 
     for (int k = 0; k < nfield; k += 1) {
         for (int iy = 1; iy < ny-1; iy += 1) {
@@ -293,6 +296,8 @@ void central2d_predict(float* __restrict__ v,
             }
         }
     }
+//	free(localScratch);
+//	localScratch=0;
 }
 
 
@@ -310,18 +315,18 @@ void central2d_correct_sd(float* __restrict__ s,
                           int xlo, int xhi)
 {
 
-	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
-        int cudaStrideX = blockDim.x * gridDim.x;
+//	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+//        int cudaStrideX = blockDim.x * gridDim.x;
 
-    for (int ix = xlo+indexX; ix < xhi; ix += cudaStrideX)
+    for (int ix = xlo; ix < xhi; ix += 1)
         s[ix] =
             0.2500f * (u [ix] + u [ix+1]) +
             0.0625f * (ux[ix] - ux[ix+1]) +
             dtcdx2  * (f [ix] - f [ix+1]);
     
-    __syncthreads();
+    //__syncthreads();
 	
-    for (int ix = xlo+indexX; ix < xhi; ix += cudaStrideX)
+    for (int ix = xlo; ix < xhi; ix += 1)
         d[ix] =
             0.0625f * (uy[ix] + uy[ix+1]) +
             dtcdy2  * (g [ix] + g [ix+1]);
@@ -343,54 +348,51 @@ void central2d_correct(float* __restrict__ v,
     assert(0 <= xlo && xlo < xhi && xhi <= nx);
     assert(0 <= ylo && ylo < yhi && yhi <= ny);
 
-    float* __restrict__ ux = scratch;
-    float* __restrict__ uy = scratch +   nx;
-    float* __restrict__ s0 = scratch + 2*nx;
-    float* __restrict__ d0 = scratch + 3*nx;
-    float* __restrict__ s1 = scratch + 4*nx;
-    float* __restrict__ d1 = scratch + 5*nx;
+	float*  localScratch = (float*) malloc((4*nfield + 6*nx*nx)* sizeof(float));
+//	cudaMallocManaged(&localScratch, 6*nx*ny*sizeof(float));//= (float*) malloc(6*nx*ny* sizeof(float));
+
+    float* __restrict__ ux = localScratch;// = scr
+    float* __restrict__ uy = localScratch +   nx;
+    float* __restrict__ s0 = localScratch + 2*nx;
+    float* __restrict__ d0 = localScratch + 3*nx;
+    float* __restrict__ s1 = localScratch + 4*nx;
+    float* __restrict__ d1 = localScratch + 5*nx;
 
 	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
         int cudaStrideX = blockDim.x * gridDim.x;
 
-
-	printf("a");
-    for (int k = 0; k < nfield; k += 1) {
+    for (int k = indexX; k < nfield; k += cudaStrideX) 
+    {
 
         float*       __restrict__ vk = v + k*ny*nx;
         const float* __restrict__ uk = u + k*ny*nx;
         const float* __restrict__ fk = f + k*ny*nx;
         const float* __restrict__ gk = g + k*ny*nx;
-//	printf("b");
         limited_deriv1(ux+1, uk+ylo*nx+1, nx-2);
-    //    printf("c");
 	limited_derivk(uy+1, uk+ylo*nx+1, nx-2, nx);
-  //      printf("d");
 	central2d_correct_sd(s1, d1, ux, uy,
                              uk + ylo*nx, fk + ylo*nx, gk + ylo*nx,
                              dtcdx2, dtcdy2, xlo, xhi);
-//	printf("e");
-        for (int iy = ylo; iy < yhi; ++iy) {
+        for (int iy = ylo; iy < yhi; ++iy) 
+	{
 		
             float* tmp;
             tmp = s0; s0 = s1; s1 = tmp;
             tmp = d0; d0 = d1; d1 = tmp;
-	///	printf("f");
             limited_deriv1(ux+1, uk+(iy+1)*nx+1, nx-2);
-        //	printf("g");	    
     	    limited_derivk(uy+1, uk+(iy+1)*nx+1, nx-2, nx);
-          //  	printf("h");
 	    central2d_correct_sd(s1, d1, ux, uy,
                                  uk + (iy+1)*nx, fk + (iy+1)*nx, gk + (iy+1)*nx,
                                  dtcdx2, dtcdy2, xlo, xhi);
-	//	printf("i");
             for (int ix = xlo; ix < xhi; ++ix)
-        	{
-	//	printf("z");
-	        vk[iy*nx+ix] = (s1[ix]+s0[ix])-(d1[ix]-d0[ix]);
-        	}
+            {
+		vk[iy*nx+ix] = (s1[ix]+s0[ix])-(d1[ix]-d0[ix]);
+            }
 	}
     }
+	__syncthreads();
+	free(localScratch);
+	//localScratch=0;
 }
 
 
@@ -429,13 +431,13 @@ void central2d_step(float* __restrict__ u, float* __restrict__ v,
     }
 
 	cudaDeviceSynchronize();
-	printf("C\n");
-    central2d_correct<<<1,512>>>(v+io*(nx_all+1), scratch, u, f, g, dtcdx2, dtcdy2,
+//	printf("C\n");
+    central2d_correct<<<1,1024>>>(v+io*(nx_all+1), scratch, u, f, g, dtcdx2, dtcdy2,
                       ng-io, nx+ng-io,
                       ng-io, ny+ng-io,
                       nx_all, ny_all, nfield);
 	cudaDeviceSynchronize();
-	printf("\nD\n");
+//	printf("\nD\n");
 }
 
 
@@ -475,35 +477,35 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
 */
 	dim3 threadsPerBlock(32,32);
 	dim3 numBlocks(nx_all / threadsPerBlock.x, ny_all / threadsPerBlock.y);
-	printf(">\n");
+//	printf(">\n");
 
     while (!done) {
-	printf(">>1\n");
+//	printf(">>1\n");
         //float cxy[2] = {1.0e-15f, 1.0e-15f};
         cxy[0] = 1.0e-15f;
 	cxy[1] = 1.0e-15f;
 	central2d_periodic<<<numBlocks,threadsPerBlock>>>(u, nx, ny, ng, nfield);
         cudaDeviceSynchronize();
-	printf(">>2\n");
+//	printf(">>2\n");
 	speed<<<numBlocks,threadsPerBlock>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
         cudaDeviceSynchronize();
-	printf(">>3\n");
+//	printf(">>3\n");
 	float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
         if (t + 2*dt >= tfinal) {
             dt = (tfinal-t)/2;
             done = true;
         }
-	printf(">>4\n");
+//	printf(">>4\n");
         central2d_step(u, v, scratch, f, g,
                        0, nx+4, ny+4, ng-2,
                        nfield, flux, speed,
                        dt, dx, dy);
-        printf(">>4.5\n");
+  //      printf(">>4.5\n");
 	central2d_step(v, u, scratch, f, g,
                        1, nx, ny, ng,
                        nfield, flux, speed,
                        dt, dx, dy);
-        printf(">>>5\n");
+    //    printf(">>>5\n");
 	t += 2*dt;
         nstep += 2;
     }

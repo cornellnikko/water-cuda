@@ -288,7 +288,7 @@ int run_sim(lua_State* L)
         //cudaDeviceSynchronize();
 	solution_check(sim);
 	tcompute += elapsed;
-        printf("  Time: %e (%e for %d steps)\n", elapsed, elapsed/nstep, nstep);
+        printf("  Time: %e (%e for %d steps) (%i/%i)\n", elapsed, elapsed/nstep, nstep, i, frames);
         viz_frame(viz, sim);
     }
     printf("Total compute time: %e\n", tcompute);
