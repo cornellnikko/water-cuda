@@ -360,7 +360,7 @@ void central2d_correct(float* __restrict__ v,
 
 	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
         int cudaStrideX = blockDim.x * gridDim.x;
-
+	indexX=0;cudaStrideX=1;
     for (int k = indexX; k < nfield; k += cudaStrideX) 
     {
 
@@ -484,10 +484,10 @@ int central2d_xrun(float* __restrict__ u, float* __restrict__ v,
         //float cxy[2] = {1.0e-15f, 1.0e-15f};
         cxy[0] = 1.0e-15f;
 	cxy[1] = 1.0e-15f;
-	central2d_periodic<<<numBlocks,threadsPerBlock>>>(u, nx, ny, ng, nfield);
+	central2d_periodic<<<1,1024>>>(u, nx, ny, ng, nfield);
         cudaDeviceSynchronize();
 //	printf(">>2\n");
-	speed<<<numBlocks,threadsPerBlock>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
+	speed<<<1,1024>>>(cxy, u, nx_all * ny_all, nx_all * ny_all);
         cudaDeviceSynchronize();
 //	printf(">>3\n");
 	float dt = cfl / fmaxf(cxy[0]/dx, cxy[1]/dy);
