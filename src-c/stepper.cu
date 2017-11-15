@@ -311,10 +311,10 @@ void central2d_correct_sd(float* __restrict__ s,
                           int xlo, int xhi)
 {
 
-//	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
-//        int cudaStrideX = blockDim.x * gridDim.x;
-
-    for (int ix = xlo; ix < xhi; ix += 1)
+	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+        int cudaStrideX = blockDim.x * gridDim.x;
+	indexX=0;cudaStrideX=1;
+    for (int ix = xlo+indexX; ix < xhi; ix += cudaStrideX)
         s[ix] =
             0.2500f * (u [ix] + u [ix+1]) +
             0.0625f * (ux[ix] - ux[ix+1]) +
@@ -322,7 +322,7 @@ void central2d_correct_sd(float* __restrict__ s,
     
     //__syncthreads();
 	
-    for (int ix = xlo; ix < xhi; ix += 1)
+    for (int ix = xlo+indexX; ix < xhi; ix += cudaStrideX)
         d[ix] =
             0.0625f * (uy[ix] + uy[ix+1]) +
             dtcdy2  * (g [ix] + g [ix+1]);
