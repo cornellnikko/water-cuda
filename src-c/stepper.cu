@@ -98,17 +98,8 @@ void copy_subgrid(float* __restrict__ dst,
                   const float* __restrict__ src,
                   int nx, int ny, int stride)
 {
-
-//	int indexY = blockIdx.y * blockDim.y + threadIdx.y;
-        int indexX = blockIdx.x * blockDim.x + threadIdx.x;
-//	int cudaStrideY = blockDim.y * gridDim.y;
-	int cudaStrideX = blockDim.x * gridDim.x;
-
 	for (int iy = 0; iy < ny; iy += 1)
-		
-//	for(int iy = indexY; iy < ny; iy += cudaStrideY)
 	{   
- //for (int ix = indexX; iy < nx; ix += cudaStrideX)
         	for (int ix = 0; ix < nx; ix += 1)
 		{
             		dst[iy*stride+ix] = src[iy*stride+ix];
@@ -130,8 +121,11 @@ void central2d_periodic(float* __restrict__ u,
     int b = ny*s, bg = 0;
     int t = ng*s, tg = (nx+ng)*s;
 
+int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+int cudaStrideX = blockDim.x * gridDim.x;
+
     // Copy data into ghost cells on each side
-    for (int k = 0; k < nfield; k += 1) 
+    for (int k = indexX; k < nfield; k += cudaStrideX) 
     {
 	//for (int k = index; k < nfield; k += cudaStride) {
         float* uk = u + k*field_stride;
@@ -284,8 +278,10 @@ void central2d_predict(float* __restrict__ v,
     float* __restrict__ fx = scratch;
     float* __restrict__ gy = scratch+nx;
 
+	int indexX = blockIdx.x * blockDim.x + threadIdx.x;
+	int cudaStrideX = blockDim.x * gridDim.x;
 
-    for (int k = 0; k < nfield; k += 1) {
+    for (int k = indexX; k < nfield; k += cudaStrideX) {
         for (int iy = 1; iy < ny-1; iy += 1) {
             int offset = (k*ny+iy)*nx+1;
             limited_deriv1(fx+1, f+offset, nx-2);
